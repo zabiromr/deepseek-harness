@@ -45,10 +45,13 @@ function rawResultText(block: ToolCallBlock): string {
   return parts.join('\n')
 }
 
-export function DetailsPanel({ useChat, useSessions, sessionId, useStore, renderSlot, closeDetails, t }: DetailsPanelProps) {
+export function DetailsPanel({
+  useChat, useSessions, sessionId, useStore, actions, renderSlot, closeDetails, t,
+}: DetailsPanelProps) {
   const selection = useStore(s => s.selection)
   // Session workspace root: a card model resolves omitted or relative
-  // tool paths against it without reading Session services.
+  // tool paths against it without reading Session services, and the file
+  // browser starts its listing there.
   const sessionCwd = useSessions(list => list.byId[sessionId]?.cwd)
   const callId = selection?.callId
   // materialFor builds a fresh wrapper; shallowEqual short-circuits on its
@@ -56,12 +59,21 @@ export function DetailsPanel({ useChat, useSessions, sessionId, useStore, render
   const material = useChat(
     s => (callId === undefined ? null : materialFor(s, callId)),
     (a, b) => shallowEqual(a, b))
+
   return (
     <div className={css.root}>
       <div className={css.header}>
         <div className={css.title}>
           {selection === null ? t('details.title') : material?.name ?? selection.toolName ?? t('details.title')}
         </div>
+        {callId !== undefined && (
+          <button
+            type="button" className={css.browse}
+            onClick={() => { actions.select(null) }}
+          >
+            {t('details.fileBrowser')}
+          </button>
+        )}
         <button
           type="button" className={css.close} aria-label={t('details.close')}
           onClick={() => { closeDetails() }}
@@ -73,7 +85,11 @@ export function DetailsPanel({ useChat, useSessions, sessionId, useStore, render
       </div>
       <div className={css.body}>
         {selection === null || callId === undefined
-          ? <div className={css.empty}>{t('details.empty')}</div>
+          // No selected call: the panel is the workspace file browser, and
+          // stays on its empty message wherever no browser is registered.
+          ? renderSlot('conversation.details.browser', { root: sessionCwd }, {
+            fallback: <div className={css.empty}>{t('details.empty')}</div>,
+          })
           : material === null
             ? <div className={css.empty}>{t('details.notInWindow')}</div>
             : (

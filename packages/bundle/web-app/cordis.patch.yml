@@ -261,6 +261,11 @@
     - id: ui-goal
       name: '@deepseek-ai/dsh-client-ui-goal'
 
+    # File browser: sidebar footer action plus the details-panel overlay that
+    # fills the `conversation.details.browser` slot ui-chat declares.
+    - id: ui-file-browser
+      name: '@deepseek-ai/dsh-client-ui-file-browser'
+
     # Per-message feedback: Like/Dislike plus an optional note in the
     # assistant-message action strip, over the messageFeedback Remote.
     - id: ui-message-feedback

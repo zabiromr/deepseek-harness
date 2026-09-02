@@ -1,0 +1,37 @@
+# Agent Note: 详情面板中的工作区文件浏览器
+
+Status: implemented
+
+[English](2026-09-02-workspace-file-browser-details-slot.md) | 中文
+
+## Problem
+
+`@deepseek-ai/dsh-client-ui-file-browser` 交付了一个侧边栏操作与一个详情面板界面，但它注册到了 `details`——`ui-chat` 已经占据的单例插槽——因此整个插件树以 `single slot "details" already has a registration at priority 0` 拒绝加载。在该失败之下两个界面都不可用：侧边栏按钮只切换无人读取的本地状态，面板传入写死的空路径，列举则调用 `window.dshListDirectory`，一个本仓库没有任何包定义的全局量。
+
+## Decision
+
+**详情面板声明 `conversation.details.browser`，文件浏览器只负责注册进去。** `slots.register()` 的 `children` 表既声明子插槽，又独占渲染它的权利，因此声明方必须是拥有该位置的条目——详情面板。`ui-chat` 在 `conversation.details.tool` 旁声明该键并拥有其 `DetailsBrowserOwnerProps`；`ui-file-browser` 依赖该契约并提供自己的注入面，这正是 `ui-tool` 与 `conversation.details.tool` 之间的关系。依赖方向由注册方指向声明方，绝不反向。
+
+**由选中状态决定面板显示哪个正文。** 选中工具调用时面板渲染工具插槽；没有选中时渲染浏览器插槽，并在未挂载浏览器的组合中回落到既有的空状态。因此侧边栏操作只调用 `layout.openDetails()`，而面板头部的一个控件通过清除选中把面板带回浏览器。不存在跨包视图状态，也不存在指向某个组合并未挂载的界面的控件。
+
+**目录列举是一个会话 Remote，而不是宿主全局量。** `session.file.list` 解析路径、拒绝非目录，并按文件系统稳定的名称顺序返回每个直接子项的名称、解析后的宿主路径与类型。它与 `file.read`、`file.write` 并列，而这三者现在都以可选服务方式读取 `fs`：未挂载文件系统 provider 的部署保留其余全部会话操作，只有这三者以 `unsupported` 被拒绝。
+
+**`FileEditor` 通过拥有方回调保存。** 该 primitive 原本不接受保存处理函数，只在 300 毫秒定时器后回到查看模式，因此保存按钮可能在什么都没写入的情况下报告成功。它现在接受 `onSave`，写入失败时把缓冲区留在编辑模式，未提供处理函数时则完全隐藏编辑入口。
+
+## Verification
+
+`session-files.host.spec.ts` 针对内存 `FileSystem` 固定了列举顺序、路径缺失与非目录、读写结果，以及无文件系统时的拒绝。`details-browser.client.spec.tsx` 固定了根目录列举、进入与返回、打开—编辑—保存往返、列举/读取/写入失败、宿主移交以及缺少根目录的状态。端到端驱动真实的 `dsh web` 服务器完成了列举工作区、进入 `docs/`、打开文件并写入落盘的编辑缓冲区。
+
+## Alternatives considered
+
+**由父级通过 `children` 表提供浏览器的注入面。** 已否决：这些回调携带注册方自身的 Remote 权限，声明方面板将不得不持有它本来完全不需要的文件系统访问能力。
+
+**在面板正文内保留双向切换。** 已否决：在缺少浏览器包的部署中，它提供的控件会落到一个空界面，并且重复了选中状态已经表达的状态。
+
+**在宿主侧计算父目录并随每次列举返回。** 已否决：由客户端保存已访问目录的路径栈无需跨平台路径运算，也能把浏览让保持在会话打开的工作区之内。
+
+## Consequences
+
+- 挂载 `ui-file-browser` 而不挂载 `ui-chat` 的组合会注册到未声明的插槽并在加载时大声失败，这正是预期的耦合。
+- 列举行以名称作为 key：宿主会解析每个列出的子项，因此符号链接与其目标在同一次列举中重复同一路径，而以路径作 key 会静默丢弃并遗留行。
+- 再增加一个详情正文，现在只需面板中的一处声明加上一个注册方，`ui-chat` 的渲染逻辑除决定何时显示外无需改动。

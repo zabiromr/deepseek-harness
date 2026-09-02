@@ -90,6 +90,12 @@ export interface DetailsToolOwnerProps {
   cwd?: string | undefined
 }
 
+/** Owner share of the details-panel file browser. */
+export interface DetailsBrowserOwnerProps {
+  /** Workspace root the browser starts in; absent until the Session reports one. */
+  root?: string | undefined
+}
+
 /** Command-row owner share. */
 export interface CommandRowOwnerProps {
   node: CommandNode
@@ -146,7 +152,7 @@ export interface DetailsInjected {
 /** Full details-panel props. */
 export type DetailsSlotProps =
   PropsRuntime<'details'>
-  & PropsRenderSlots<'conversation.details.tool'>
+  & PropsRenderSlots<'conversation.details.tool' | 'conversation.details.browser'>
   & PropsStore<ChatStore>
   & InjectFace<DetailsInjected>
   & PropsLocale<'chat'>
@@ -206,5 +212,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * replaces the shipped Tool details renderer; absence uses the raw fallback.
      */
     'conversation.details.tool': { kind: 'single'; scope: 'session'; owner: DetailsToolOwnerProps }
+    /**
+     * Whole details-panel body for browsing and editing workspace files. The
+     * component receives the workspace root to start from. The panel renders
+     * this slot whenever no Tool call is selected; without a registration it
+     * shows its own empty state instead.
+     */
+    'conversation.details.browser': { kind: 'single'; scope: 'session'; owner: DetailsBrowserOwnerProps }
   }
 }

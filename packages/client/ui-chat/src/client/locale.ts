@@ -24,6 +24,8 @@ export const zh = {
   'details.input': '输入',
   'details.output': '输出',
   'details.running': '运行中…',
+  'details.fileBrowser': '浏览文件',
+
   'chat.loadingHistory': '载入历史…',
   'chat.loadError': '历史加载失败：{message}（{code}）',
   'chat.loadOlder': '加载更早',
@@ -137,6 +139,8 @@ export const en = {
   'details.input': 'Input',
   'details.output': 'Output',
   'details.running': 'Running…',
+  'details.fileBrowser': 'Browse files',
+
   'chat.loadingHistory': 'Loading history…',
   'chat.loadError': 'Failed to load history: {message} ({code})',
   'chat.loadOlder': 'Load earlier',

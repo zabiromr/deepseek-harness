@@ -7,6 +7,7 @@ import { canOpenNativePath, openNativePath } from '@deepseek-ai/dsh-native-comma
 import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import type { FileSystem } from '@deepseek-ai/dsh-fs'
 import {
   ApiSessionAgentController,
   inspectApiSession,
@@ -29,6 +30,12 @@ import type {
   SessionControlFrame,
   SessionCreateRequest,
   SessionCreateValue,
+  SessionFileListRequest,
+  SessionFileListValue,
+  SessionFileReadRequest,
+  SessionFileReadValue,
+  SessionFileWriteRequest,
+  SessionFileWriteValue,
   SessionFollowFrame,
   SessionFollowRequest,
   SessionForkRequest,
@@ -388,6 +395,107 @@ export class SessionController extends TypertRemoteService {
   @Remote({ mode: 'stream' })
   control(signal: AbortSignal): AsyncIterable<SessionControlFrame> {
     return this.controlState.control(signal)
+  }
+
+  /**
+   * Read the full content of an arbitrary file within the Session workspace.
+   * @param request - absolute file path within the workspace.
+   * @param signal - cancellation signal for the resolve, stat, and read steps.
+   * @returns decoded UTF-8 file content.
+   * @throws TypertRemoteFailure when the file is absent, binary, or too large.
+   */
+  @Remote('file.read')
+  async fileRead(request: SessionFileReadRequest, signal: AbortSignal): Promise<SessionFileReadValue> {
+    const fs = this.fileSystem()
+    const target = await fs.resolve(request.path, { signal })
+    const info = await fs.stat(target, signal)
+    if (info === undefined) {
+      throw new TypertRemoteFailure({
+        code: 'file-not-found',
+        message: `file not found: ${request.path}`,
+        details: { path: request.path },
+      })
+    }
+    if (info.type !== 'file') {
+      throw new TypertRemoteFailure({
+        code: 'not-a-file',
+        message: `${request.path} is not a regular file`,
+        details: { path: request.path, type: info.type },
+      })
+    }
+    const content = await fs.readText(target, signal)
+    return { content }
+  }
+
+  /**
+   * The workspace filesystem backing the file Remotes. It stays an optional
+   * read: a deployment that mounts no filesystem provider still serves every
+   * other Session operation, and only the file Remotes refuse.
+   * @returns the mounted filesystem capability.
+   * @throws TypertRemoteFailure when the deployment mounts no filesystem provider.
+   */
+  private fileSystem(): FileSystem {
+    const fs = this.ctx.get('fs')
+    if (fs === undefined) {
+      throw new TypertRemoteFailure({
+        code: 'unsupported',
+        message: 'this deployment mounts no filesystem provider',
+        details: {},
+      })
+    }
+    return fs
+  }
+
+  /**
+   * List the direct children of one directory within the Session workspace.
+   * @param request - directory path resolved by the Host filesystem.
+   * @param signal - cancellation signal for the resolve, stat, and list steps.
+   * @returns the resolved directory path and its direct children in stable name order.
+   * @throws TypertRemoteFailure when the directory is absent or the path is not a directory.
+   */
+  @Remote('file.list')
+  async fileList(request: SessionFileListRequest, signal: AbortSignal): Promise<SessionFileListValue> {
+    const fs = this.fileSystem()
+    const target = await fs.resolve(request.path, { signal })
+    const info = await fs.stat(target, signal)
+    if (info === undefined) {
+      throw new TypertRemoteFailure({
+        code: 'file-not-found',
+        message: `directory not found: ${request.path}`,
+        details: { path: request.path },
+      })
+    }
+    if (info.type !== 'directory') {
+      throw new TypertRemoteFailure({
+        code: 'not-a-directory',
+        message: `${request.path} is not a directory`,
+        details: { path: request.path, type: info.type },
+      })
+    }
+    const entries = await fs.listDir(target, signal)
+    return {
+      path: fs.processPath(target),
+      entries: entries.map(entry => ({
+        name: entry.name,
+        path: fs.processPath(entry.target),
+        type: entry.type,
+      })),
+    }
+  }
+
+  /**
+   * Write full content to an arbitrary file within the Session workspace.
+   * @param request - absolute file path and full content to write.
+   * @param signal - cancellation signal for the resolve and write steps.
+   * @returns confirmation of the write operation.
+   * @throws TypertRemoteFailure when the path is invalid or the write fails.
+   */
+  @Remote('file.write')
+  async fileWrite(request: SessionFileWriteRequest, signal: AbortSignal): Promise<SessionFileWriteValue> {
+    const fs = this.fileSystem()
+    const target = await fs.resolve(request.path, { signal })
+    const outcome = await fs.writeText(target, request.content, undefined, signal)
+    return { operation: outcome.operation }
   }
 
 }
