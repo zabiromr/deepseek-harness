@@ -38,7 +38,7 @@ The package takes no configuration. Mounting the row is the whole setup; the row
   name: '@deepseek-ai/dsh-client-ui-file-browser'
 ```
 
-The plugin injects `slots`, `layout`, `locale`, `remote`, and `remote.session`, and fills the `conversation.details.browser` slot that `ui-chat` declares, so both packages must be mounted together for the browser to appear. The details panel renders that slot whenever no Tool call is selected, so the sidebar action only has to open the panel.
+The plugin injects `slots`, `layout`, `locale`, `remote`, and `remote.session`, and fills the `conversation.details.browser` slot that `ui-chat` declares, so both packages must be mounted together for the browser to appear. The details panel renders that slot whenever no Tool call is selected, so the sidebar action only has to open the panel. A Tool view can also hand the browser one path — the read card offers it for the file its call read — and the panel opens that file directly.
 
 <a id="model-experience"></a>
 ## Model Experience

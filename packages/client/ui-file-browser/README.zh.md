@@ -38,7 +38,7 @@ kind: "package-reference"
   name: '@deepseek-ai/dsh-client-ui-file-browser'
 ```
 
-该插件注入 `slots`、`layout`、`locale`、`remote` 与 `remote.session`，并填充 `ui-chat` 声明的 `conversation.details.browser` 插槽，因此两个包必须一同挂载，浏览器才会出现。只要没有选中工具调用，详情面板就渲染该插槽，因此侧边栏操作只需打开面板。
+该插件注入 `slots`、`layout`、`locale`、`remote` 与 `remote.session`，并填充 `ui-chat` 声明的 `conversation.details.browser` 插槽，因此两个包必须一同挂载，浏览器才会出现。只要没有选中工具调用，详情面板就渲染该插槽，因此侧边栏操作只需打开面板。工具视图也可以把一个路径交给浏览器——读取卡片会为其调用所读的文件提供该入口——面板随即直接打开该文件。
 
 <a id="model-experience"></a>
 ## 模型体验

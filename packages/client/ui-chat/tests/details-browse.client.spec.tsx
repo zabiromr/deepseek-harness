@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import {
   bindSnapshotSelector, conversationSnapshot, makeTranslate, sessionSnapshot, workspaceSnapshot,
 } from '@deepseek-ai/dsh-client-test-runtime'
@@ -13,6 +13,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { DetailsPanel } from '../src/client/details/DetailsPanel.tsx'
 import { createChatStore } from '../src/client/stores.ts'
 import type { DetailsSlotProps, SelectionTarget } from '../src/client/index.ts'
+import type { ToolResultNode } from '../src/client/contract/snapshot.ts'
 import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
 import { zh } from '../src/client/locale.ts'
 
@@ -38,6 +39,12 @@ const emptyTrajectory: Parameters<Parameters<DetailsSlotProps['useTrajectory']>[
  * @returns the render result plus the renderSlot spy the assertions read.
  */
 function mount(selection: SelectionTarget | null) {
+  // A selected call only reaches the Tool branch when the snapshot still holds
+  // it; without the node the panel renders its out-of-window message instead.
+  const tool: ToolResultNode = {
+    kind: 'tool-result', seq: 5, time: 5_000, callId: 'c1', call: null, callTime: 4_000,
+    content: [], isError: false, subCalls: [],
+  }
   const chat = createChatStore().create()
   if (selection !== null) chat.actions.select(selection)
   const sessions = createSnapshotStore<SessionListState>({
@@ -63,7 +70,10 @@ function mount(selection: SelectionTarget | null) {
       useSessionPendingInteraction={bindSnapshotSelector(createSnapshotStore(new Map()))}
       useWorkspaces={bindSnapshotSelector(createSnapshotStore(workspaceSnapshot()))}
       useConversation={bindSnapshotSelector(createSnapshotStore(conversationSnapshot()))}
-      useChat={bindSnapshotSelector({ getSnapshot: () => chatSnapshotFixture(), subscribe: () => () => {} })}
+      useChat={bindSnapshotSelector({
+        getSnapshot: () => chatSnapshotFixture({ nodes: [tool] }),
+        subscribe: () => () => {},
+      })}
       useTrajectory={selector => selector(emptyTrajectory)}
       useInput={() => { throw new Error('the details panel reads no input state') }}
       inputActions={{
@@ -103,6 +113,22 @@ describe('details panel browse state', () => {
     expect(chat.getSnapshot().selection).toBeNull()
     expect(renderSlot).toHaveBeenCalledWith(
       'conversation.details.browser', { root: CWD }, expect.anything(),
+    )
+  })
+
+  it('hands a Tool view path to the browser, resolved against the workspace', () => {
+    const { renderSlot, chat } = mount({ turnSeq: 10, callId: 'c1', toolName: 'read' })
+    const toolCall = renderSlot.mock.calls.find(call => call[0] === 'conversation.details.tool')
+    const owner = toolCall?.[1] as { browseFile?: (path: string) => void }
+    renderSlot.mockClear()
+
+    act(() => { owner.browseFile?.('src/a.ts') })
+
+    expect(chat.getSnapshot().selection).toBeNull()
+    expect(renderSlot).toHaveBeenCalledWith(
+      'conversation.details.browser',
+      { root: CWD, openPath: `${CWD}/src/a.ts` },
+      expect.anything(),
     )
   })
 

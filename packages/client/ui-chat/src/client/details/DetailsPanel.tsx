@@ -1,5 +1,6 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import { CodeBlock } from '@deepseek-ai/dsh-client-ui-primitives'
+import { resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import { shallowEqual } from '@deepseek-ai/dsh-client-store'
 import type { DetailsSlotProps } from '../contract/slots.ts'
 import type { ChatSnapshot, RunningToolCall, ToolCallBlock, ToolResultNode } from '../contract/snapshot.ts'
@@ -59,6 +60,10 @@ export function DetailsPanel({
   const material = useChat(
     s => (callId === undefined ? null : materialFor(s, callId)),
     (a, b) => shallowEqual(a, b))
+  // A Tool view can hand one of its paths to the browser. Clearing the
+  // selection is what actually swaps the body, so this holds only the path
+  // the browser should open when it renders.
+  const [browsePath, setBrowsePath] = useState<string | null>(null)
 
   return (
     <div className={css.root}>
@@ -69,7 +74,7 @@ export function DetailsPanel({
         {callId !== undefined && (
           <button
             type="button" className={css.browse}
-            onClick={() => { actions.select(null) }}
+            onClick={() => { setBrowsePath(null); actions.select(null) }}
           >
             {t('details.fileBrowser')}
           </button>
@@ -87,7 +92,10 @@ export function DetailsPanel({
         {selection === null || callId === undefined
           // No selected call: the panel is the workspace file browser, and
           // stays on its empty message wherever no browser is registered.
-          ? renderSlot('conversation.details.browser', { root: sessionCwd }, {
+          ? renderSlot('conversation.details.browser', {
+            root: sessionCwd,
+            ...browsePath === null ? {} : { openPath: browsePath },
+          }, {
             fallback: <div className={css.empty}>{t('details.empty')}</div>,
           })
           : material === null
@@ -107,7 +115,14 @@ export function DetailsPanel({
                       would otherwise carry into the next selection because the
                       panel does not unmount between calls. */}
                   <Fragment key={callId}>
-                    {renderSlot('conversation.details.tool', { block: material.block, cwd: sessionCwd }, {
+                    {renderSlot('conversation.details.tool', {
+                      block: material.block,
+                      cwd: sessionCwd,
+                      browseFile: (path: string) => {
+                        setBrowsePath(resolveWorkspacePath(sessionCwd, path))
+                        actions.select(null)
+                      },
+                    }, {
                       fallback: 'kind' in material.block
                         ? (
                           <pre className={css.code} data-error={material.block.isError || undefined}>

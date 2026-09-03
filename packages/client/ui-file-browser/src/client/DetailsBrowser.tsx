@@ -78,6 +78,7 @@ interface OpenFile {
  */
 export function DetailsBrowser({
   root,
+  openPath,
   listDirectory,
   readFile,
   writeFile,
@@ -97,6 +98,25 @@ export function DetailsBrowser({
     setTrail(root === undefined ? [] : [root])
     setOpen(null)
   }, [root])
+
+  // An owner-supplied path opens that file directly, so a Tool view can hand
+  // the browser the file its call read instead of making the user walk to it.
+  useEffect(() => {
+    if (openPath === undefined) return
+    let current = true
+    setLoading(true)
+    void readFile(openPath).then((file) => {
+      if (!current) return
+      setLoading(false)
+      if (file === null) {
+        setRefusal('read')
+        return
+      }
+      setOpen({ path: openPath, ...file })
+      setRefusal(null)
+    })
+    return () => { current = false }
+  }, [openPath, readFile])
 
   const directory = trail.at(-1)
 

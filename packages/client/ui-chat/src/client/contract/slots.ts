@@ -86,6 +86,12 @@ export type ChatNodeViewProps<Kind extends ChatNodeKind = ChatNodeKind> =
 
 /** Tool block rendered in the details panel. */
 export interface DetailsToolOwnerProps {
+  /**
+   * Open one path in the details file browser, when a browser is mounted. A
+   * Tool view offers this for a path its call read; the panel resolves the
+   * path against the workspace and switches its own body.
+   */
+  browseFile?: ((path: string) => void) | undefined
   block: ToolCallBlock
   cwd?: string | undefined
 }
@@ -94,6 +100,8 @@ export interface DetailsToolOwnerProps {
 export interface DetailsBrowserOwnerProps {
   /** Workspace root the browser starts in; absent until the Session reports one. */
   root?: string | undefined
+  /** A file to open directly instead of listing the root. */
+  openPath?: string | undefined
 }
 
 /** Command-row owner share. */

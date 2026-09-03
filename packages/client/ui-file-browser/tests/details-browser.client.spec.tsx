@@ -156,6 +156,17 @@ describe('details file browser', () => {
     expect(openFilePath).toHaveBeenCalledWith('/w/README.md')
   })
 
+  it('opens an owner-supplied path directly instead of listing the root', async () => {
+    const { readFile } = renderBrowser({ openPath: '/w/src/a.ts' })
+    await settle()
+
+    expect(readFile).toHaveBeenCalledWith('/w/src/a.ts')
+    // The editor is mounted on that file rather than the root listing; its
+    // body is highlighted per line, so the banner path is what identifies it.
+    expect(document.querySelector('[data-file-editor]')).not.toBeNull()
+    expect(screen.queryByText('src/')).toBeNull()
+  })
+
   it('says so when the Session reports no workspace root', () => {
     renderBrowser({ root: undefined })
 

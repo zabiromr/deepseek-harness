@@ -18,6 +18,8 @@ English | [中文](2026-09-02-workspace-file-browser-details-slot.zh.md)
 
 **A save proves which content it replaces.** `file.read` returns the Host's freshness token with the content, and `file.write` accepts it as `expectedVersion`, which the backend enforces as `replaceIfVersion`. A file changed since it was opened fails `stale-version`, and the browser keeps the user's buffer and offers a reload instead of replacing content nobody saw. Omitting the version still overwrites unconditionally, so the guard is the caller's to opt into and other callers are unaffected. `file.read` also refuses a file over the configured `fileReadMaxBytes` by its stat size before decoding, and converts the backend's binary refusal into `not-text` rather than leaking an internal error.
 
+**A Tool view routes to the browser instead of editing its own card.** The read card shows a windowed snapshot the call captured, not current disk content, so editing it would write stale text back — the very loss the version guard exists to prevent, with no version to check. The card instead offers the path to `browseFile`, an optional member of the Tool slot's owner share; the panel resolves it against the workspace, clears the selection, and passes `openPath` to the browser, which opens that file fresh. One editing surface owns files, the presenter stays pure, and `ui-tool` needs no write authority.
+
 **`FileEditor` saves through an owner callback.** The primitive took no save handler and returned to view mode after a 300 ms timer, so a Save button could report success while writing nothing. It now takes `onSave`, keeps the buffer in edit mode when the write fails, and hides the edit affordance entirely when no handler is supplied.
 
 ## Verification
@@ -29,6 +31,8 @@ English | [中文](2026-09-02-workspace-file-browser-details-slot.zh.md)
 **Let the parent supply the browser's inject face through the `children` table.** Rejected: the callbacks carry the registrant's own Remote authority, and the declaring panel would have to hold filesystem access it otherwise never needs.
 
 **Keep a two-way toggle inside the panel body.** Rejected: it offered a control that lands on an empty surface wherever the browser package is absent, and it duplicated state that selection already expresses.
+
+**Make the read card itself editable.** Rejected: its lines are a historical excerpt at an offset, so a save would overwrite current content with a snapshot, and giving `ui-tool` filesystem write authority duplicates a seam the browser already owns.
 
 **Merge a conflicting edit, or reload it silently.** Rejected: a merge view is a larger surface than this panel earns, and silently reloading discards the user's typing. Refusing the write and holding the buffer keeps the decision with the person who made the edit.
 
