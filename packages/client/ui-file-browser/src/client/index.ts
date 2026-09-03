@@ -17,8 +17,8 @@ import type { DetailsBrowserInjected, FileBrowserSidebarInjected } from './contr
 export { DetailsBrowser } from './DetailsBrowser.tsx'
 export { FileBrowserSidebar } from './FileBrowser.tsx'
 export type {
-  DetailsBrowserComponentProps, DetailsBrowserInjected, FileBrowserEntry,
-  FileBrowserSidebarInjected, FileBrowserSidebarProps,
+  DetailsBrowserComponentProps, DetailsBrowserInjected, FileBrowserEntry, FileBrowserFile,
+  FileBrowserSidebarInjected, FileBrowserSidebarProps, FileBrowserWriteOutcome,
 } from './contract/slots.ts'
 export type { FileBrowserKey } from './locale.ts'
 
@@ -45,11 +45,14 @@ export function apply(ctx: ClientContext): void {
     },
     readFile: async (path: string) => {
       const result = await remote.session['file.read']({ path })
-      return result.ok ? result.value.content : null
+      return result.ok ? { content: result.value.content, version: result.value.version } : null
     },
-    writeFile: async (path: string, content: string) => {
-      const result = await remote.session['file.write']({ path, content })
-      return result.ok
+    writeFile: async (path: string, content: string, expectedVersion) => {
+      const result = await remote.session['file.write']({ path, content, expectedVersion })
+      if (result.ok) return { kind: 'written', version: result.value.version }
+      // The Host distinguishes a refused stale write from a failed one; the
+      // browser keeps the user's buffer in the first case.
+      return result.error.code === 'stale-version' ? { kind: 'stale' } : { kind: 'failed' }
     },
     openFilePath: async (path: string) => {
       await remote.session.openWorkspacePath({ path })

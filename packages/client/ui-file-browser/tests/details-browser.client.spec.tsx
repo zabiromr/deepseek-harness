@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
+import type { SessionFileVersion } from '@deepseek-ai/dsh-api-session-controller/client'
 import { DetailsBrowser } from '../src/client/DetailsBrowser.tsx'
 import type { DetailsBrowserComponentProps, FileBrowserEntry } from '../src/client/contract/slots.ts'
 import { zh } from '../src/client/locale.ts'
@@ -31,8 +32,10 @@ const TREE: Record<string, readonly FileBrowserEntry[]> = {
  */
 function renderBrowser(overrides: Partial<DetailsBrowserComponentProps> = {}) {
   const listDirectory = vi.fn(async (path: string) => TREE[path] ?? null)
-  const readFile = vi.fn(async (path: string) => `content of ${path}`)
-  const writeFile = vi.fn(async () => true)
+  const readFile = vi.fn(async (path: string) => ({
+    content: `content of ${path}`, version: 'v1' as SessionFileVersion,
+  }))
+  const writeFile = vi.fn(async () => ({ kind: 'written', version: 'v2' as SessionFileVersion }))
   const openFilePath = vi.fn(async () => {})
   const props: DetailsBrowserComponentProps = {
     root: ROOT, listDirectory, readFile, writeFile, openFilePath, t, ...overrides,
@@ -82,7 +85,7 @@ describe('details file browser', () => {
     fireEvent.click(screen.getByLabelText(zh['fileBrowser.saveAria']))
     await settle()
 
-    expect(writeFile).toHaveBeenCalledWith('/w/README.md', 'edited')
+    expect(writeFile).toHaveBeenCalledWith('/w/README.md', 'edited', 'v1')
   })
 
   it('reports a failed listing instead of an empty directory', async () => {
@@ -104,7 +107,7 @@ describe('details file browser', () => {
   })
 
   it('reports a refused write and keeps the buffer in edit mode', async () => {
-    renderBrowser({ writeFile: vi.fn(async () => false) })
+    renderBrowser({ writeFile: vi.fn(async () => ({ kind: 'failed' as const })) })
     await settle()
 
     fireEvent.click(screen.getByText('README.md'))
@@ -115,6 +118,31 @@ describe('details file browser', () => {
 
     expect(screen.getByText(zh['fileBrowser.writeError'])).toBeDefined()
     expect(screen.getByRole('textbox')).toBeDefined()
+  })
+
+  it('refuses to overwrite a file that changed since it was opened', async () => {
+    const readFile = vi.fn(async (path: string) => ({
+      content: `content of ${path}`, version: 'v1' as SessionFileVersion,
+    }))
+    renderBrowser({ writeFile: vi.fn(async () => ({ kind: 'stale' as const })), readFile })
+    await settle()
+
+    fireEvent.click(screen.getByText('README.md'))
+    await settle()
+    fireEvent.click(screen.getByLabelText(zh['fileBrowser.editAria']))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'mine' } })
+    fireEvent.click(screen.getByLabelText(zh['fileBrowser.saveAria']))
+    await settle()
+
+    // The edit survives: the user still owns the buffer, and the banner
+    // offers the one action that resolves the conflict.
+    expect(screen.getByText(zh['fileBrowser.conflict'])).toBeDefined()
+    expect(screen.getByRole('textbox')).toBeDefined()
+
+    readFile.mockClear()
+    fireEvent.click(screen.getByText(zh['fileBrowser.reload']))
+    await settle()
+    expect(readFile).toHaveBeenCalledWith('/w/README.md')
   })
 
   it('hands the open path to the Host opener', async () => {

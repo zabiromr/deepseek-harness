@@ -3,6 +3,7 @@
  * registrant. The `conversation.details.browser` slot itself is declared by
  * the details panel (ui-chat), which owns when the overlay renders.
  */
+import type { SessionFileVersion } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 // The sidebar footer action this package registers into is declared by ui-sidebar.
@@ -44,10 +45,28 @@ export type DetailsBrowserComponentProps =
   & InjectFace<DetailsBrowserInjected>
   & PropsLocale<'fileBrowser'>
 
+/** One file as read: its content and the version that content came from. */
+export interface FileBrowserFile {
+  /** UTF-8 content of the file. */
+  readonly content: string
+  /** Freshness token to hand back with an edit of this content. */
+  readonly version: SessionFileVersion
+}
+
+/**
+ * Outcome of one guarded write. `stale` is not a failure of the write path but
+ * a refusal: the file moved on since it was read, so the edit was not applied
+ * and the buffer is still the user's to resolve.
+ */
+export type FileBrowserWriteOutcome =
+  | { readonly kind: 'written'; readonly version: SessionFileVersion }
+  | { readonly kind: 'stale' }
+  | { readonly kind: 'failed' }
+
 /**
  * Session Remote callbacks the registering entry supplies with its own
- * authority. Each resolves to null or false rather than throwing, so one
- * failed workspace operation leaves the browser mounted on its error banner.
+ * authority. Each resolves to a value rather than throwing, so one failed
+ * workspace operation leaves the browser mounted on its error banner.
  */
 export interface DetailsBrowserInjected {
   /**
@@ -59,16 +78,22 @@ export interface DetailsBrowserInjected {
   /**
    * Resolve the full content of one workspace file.
    * @param path - the file to read.
-   * @returns the decoded content, or null when the read failed.
+   * @returns the content and its version, or null when the read failed.
    */
-  readFile: (path: string) => Promise<string | null>
+  readFile: (path: string) => Promise<FileBrowserFile | null>
   /**
-   * Write full content to one workspace file.
+   * Write full content to one workspace file, only while it still holds the
+   * version the edit was based on.
    * @param path - the file to write.
    * @param content - the complete new content.
-   * @returns whether the write succeeded.
+   * @param expectedVersion - the version the edit replaces.
+   * @returns whether the write applied, was refused as stale, or failed.
    */
-  writeFile: (path: string, content: string) => Promise<boolean>
+  writeFile: (
+    path: string,
+    content: string,
+    expectedVersion: SessionFileVersion,
+  ) => Promise<FileBrowserWriteOutcome>
   /**
    * Open one workspace path in the Host desktop editor.
    * @param path - the file to hand to the Host opener.

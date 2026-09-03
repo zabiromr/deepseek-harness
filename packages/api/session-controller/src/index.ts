@@ -7,7 +7,7 @@ import { canOpenNativePath, openNativePath } from '@deepseek-ai/dsh-native-comma
 import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
-import type { FileSystem } from '@deepseek-ai/dsh-fs'
+import { FsError, type FileSystem, type FsTarget, type FsVersion } from '@deepseek-ai/dsh-fs'
 import {
   ApiSessionAgentController,
   inspectApiSession,
@@ -32,6 +32,7 @@ import type {
   SessionCreateValue,
   SessionFileListRequest,
   SessionFileListValue,
+  SessionFileVersion,
   SessionFileReadRequest,
   SessionFileReadValue,
   SessionFileWriteRequest,
@@ -74,6 +75,8 @@ declare module '@deepseek-ai/cordis' {
 export interface Config {
   /** Maximum cold Session artifact size eligible for one full projection observation. */
   readonly coldBlankProbeMaxBytes?: number
+  /** Exclusive byte ceiling on one `file.read`; a larger file is refused rather than loaded. */
+  readonly fileReadMaxBytes?: number
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
 }
@@ -85,6 +88,14 @@ export interface SessionControllerInternals {
   /** Native handoff availability probe. */
   readonly canOpenPath?: () => boolean
 }
+
+/**
+ * Byte ceiling on one `file.read`. A browser holds the whole response in
+ * memory and renders it as text, so the default keeps a stray large or
+ * generated file from being loaded in full; deployments editing bigger files
+ * raise `fileReadMaxBytes`.
+ */
+const DEFAULT_FILE_READ_MAX_BYTES = 2 * 1024 * 1024
 
 /** Host service backing the generated `ctx.remote.session` namespace. */
 export class SessionController extends TypertRemoteService {
@@ -102,6 +113,7 @@ export class SessionController extends TypertRemoteService {
 
   static Config: z<Config> = z.object({
     coldBlankProbeMaxBytes: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_BYTES),
+    fileReadMaxBytes: z.natural().default(DEFAULT_FILE_READ_MAX_BYTES),
     nativeOpen: z.boolean(),
   })
 
@@ -112,6 +124,7 @@ export class SessionController extends TypertRemoteService {
   private readonly listState: ApiSessionList
   private readonly openPath: (path: string, signal: AbortSignal) => Promise<void>
   private readonly canOpenPath: () => boolean
+  private readonly fileReadMaxBytes: number
   private readonly promotions = new Set<Promise<void>>()
 
   /**
@@ -134,6 +147,7 @@ export class SessionController extends TypertRemoteService {
       ctx,
       config.coldBlankProbeMaxBytes ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES,
     )
+    this.fileReadMaxBytes = config.fileReadMaxBytes ?? DEFAULT_FILE_READ_MAX_BYTES
     this.openPath = internals.openPath ?? openNativePath
     this.canOpenPath = internals.canOpenPath
       ?? (() => config.nativeOpen ?? (internals.openPath !== undefined || canOpenNativePath()))
@@ -423,8 +437,47 @@ export class SessionController extends TypertRemoteService {
         details: { path: request.path, type: info.type },
       })
     }
-    const content = await fs.readText(target, signal)
-    return { content }
+    // Refuse by the stat size before reading: the caller holds the whole
+    // response in memory, so an oversized file must never be decoded at all.
+    if (info.size !== undefined && info.size > this.fileReadMaxBytes) {
+      throw new TypertRemoteFailure({
+        code: 'too-large',
+        message: `${request.path} is ${String(info.size)} bytes, over the ${String(this.fileReadMaxBytes)} byte read limit`,
+        details: { path: request.path, size: info.size, limit: this.fileReadMaxBytes },
+      })
+    }
+    const content = await this.readTextOrRefuse(fs, target, request.path, signal)
+    return { content, version: info.version as string as SessionFileVersion }
+  }
+
+  /**
+   * Read text, converting the backend's binary refusal into a Remote failure
+   * a caller can present. Every other filesystem error keeps its own reporting.
+   * @param fs - the mounted filesystem.
+   * @param target - the resolved file.
+   * @param path - the requested path, for the failure message.
+   * @param signal - cancellation signal for the read.
+   * @returns the decoded text.
+   * @throws TypertRemoteFailure when the file is not UTF-8 text.
+   */
+  private async readTextOrRefuse(
+    fs: FileSystem,
+    target: FsTarget,
+    path: string,
+    signal: AbortSignal,
+  ): Promise<string> {
+    try {
+      return await fs.readText(target, signal)
+    } catch (error: unknown) {
+      if (error instanceof FsError && error.code === 'FS_NOT_TEXT') {
+        throw new TypertRemoteFailure({
+          code: 'not-text',
+          message: `${path} is not UTF-8 text`,
+          details: { path },
+        })
+      }
+      throw error
+    }
   }
 
   /**
@@ -494,8 +547,25 @@ export class SessionController extends TypertRemoteService {
   async fileWrite(request: SessionFileWriteRequest, signal: AbortSignal): Promise<SessionFileWriteValue> {
     const fs = this.fileSystem()
     const target = await fs.resolve(request.path, { signal })
-    const outcome = await fs.writeText(target, request.content, undefined, signal)
-    return { operation: outcome.operation }
+    // An expected version makes the write conditional: the backend rejects it
+    // when the file moved on since the caller read it, so a stale buffer
+    // reports a conflict instead of silently replacing newer content.
+    const expected = request.expectedVersion === undefined
+      ? undefined
+      : { kind: 'replaceIfVersion' as const, version: request.expectedVersion as string as FsVersion }
+    try {
+      const outcome = await fs.writeText(target, request.content, expected, signal)
+      return { operation: outcome.operation, version: outcome.version as string as SessionFileVersion }
+    } catch (error: unknown) {
+      if (error instanceof FsError && error.code === 'FS_STALE_VERSION') {
+        throw new TypertRemoteFailure({
+          code: 'stale-version',
+          message: `${request.path} changed since it was read`,
+          details: { path: request.path },
+        })
+      }
+      throw error
+    }
   }
 
 }

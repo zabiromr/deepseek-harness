@@ -5,6 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { FileEditor, type FileEditorLine } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SessionFileVersion } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { DetailsBrowserComponentProps, FileBrowserEntry } from './contract/slots.ts'
 import css from './DetailsBrowser.module.css'
 
@@ -48,10 +49,26 @@ function linesOf(content: string): FileEditorLine[] {
   return content.split('\n').map((text, index) => ({ number: index + 1, text }))
 }
 
+/**
+ * What the browser last refused to do, kept as a discriminant rather than a
+ * message so the view can key its recovery affordance off the reason.
+ */
+type Refusal = 'list' | 'read' | 'write' | 'conflict'
+
+/** Locale key carrying each refusal's message. */
+const REFUSAL_KEY = {
+  list: 'fileBrowser.listError',
+  read: 'fileBrowser.readError',
+  write: 'fileBrowser.writeError',
+  conflict: 'fileBrowser.conflict',
+} as const satisfies Record<Refusal, string>
+
 /** The file currently open for viewing and editing. */
 interface OpenFile {
   readonly path: string
   readonly content: string
+  /** The version this content came from; an edit is written against it. */
+  readonly version: SessionFileVersion
 }
 
 /**
@@ -74,7 +91,7 @@ export function DetailsBrowser({
   const [entries, setEntries] = useState<readonly FileBrowserEntry[]>([])
   const [open, setOpen] = useState<OpenFile | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [refusal, setRefusal] = useState<Refusal | null>(null)
 
   useEffect(() => {
     setTrail(root === undefined ? [] : [root])
@@ -92,11 +109,11 @@ export function DetailsBrowser({
       setLoading(false)
       if (listed === null) {
         setEntries([])
-        setError(t('fileBrowser.listError'))
+        setRefusal('list')
         return
       }
       setEntries(listed)
-      setError(null)
+      setRefusal(null)
     })
     return () => { current = false }
   }, [directory, open, listDirectory, t])
@@ -107,14 +124,14 @@ export function DetailsBrowser({
       return
     }
     setLoading(true)
-    void readFile(entry.path).then((content) => {
+    void readFile(entry.path).then((file) => {
       setLoading(false)
-      if (content === null) {
-        setError(t('fileBrowser.readError'))
+      if (file === null) {
+        setRefusal('read')
         return
       }
-      setOpen({ path: entry.path, content })
-      setError(null)
+      setOpen({ path: entry.path, ...file })
+      setRefusal(null)
     })
   }, [readFile, t])
 
@@ -128,15 +145,34 @@ export function DetailsBrowser({
 
   const save = useCallback(async (content: string): Promise<boolean> => {
     if (open === null) return false
-    const written = await writeFile(open.path, content)
-    if (!written) {
-      setError(t('fileBrowser.writeError'))
+    const outcome = await writeFile(open.path, content, open.version)
+    if (outcome.kind === 'stale') {
+      // The file moved on since it was opened. Refusing here is the whole
+      // point: the edit stays in the buffer for the user to reconcile rather
+      // than replacing content they never saw.
+      setRefusal('conflict')
       return false
     }
-    setOpen({ path: open.path, content })
-    setError(null)
+    if (outcome.kind === 'failed') {
+      setRefusal('write')
+      return false
+    }
+    setOpen({ path: open.path, content, version: outcome.version })
+    setRefusal(null)
     return true
   }, [open, writeFile, t])
+
+  const reopen = useCallback(() => {
+    if (open === null) return
+    void readFile(open.path).then((file) => {
+      if (file === null) {
+        setRefusal('read')
+        return
+      }
+      setOpen({ path: open.path, ...file })
+      setRefusal(null)
+    })
+  }, [open, readFile, t])
 
   const lines = useMemo(() => (open === null ? [] : linesOf(open.content)), [open])
 
@@ -169,7 +205,16 @@ export function DetailsBrowser({
           </div>
         )}
       </div>
-      {error !== null && <div className={css.errorBanner}>{error}</div>}
+      {refusal !== null && (
+        <div className={css.errorBanner}>
+          {t(REFUSAL_KEY[refusal])}
+          {refusal === 'conflict' && (
+            <button type="button" className={css.reloadButton} onClick={reopen}>
+              {t('fileBrowser.reload')}
+            </button>
+          )}
+        </div>
+      )}
       {loading && <div className={css.loadingState}>{t('fileBrowser.loading')}</div>}
       {open !== null
         ? (

@@ -27,7 +27,7 @@ Mount this package in a Web profile when a user should be able to open a workspa
 
 ### When to choose it
 
-Choose it for a deployment whose users work against a local workspace and want in-place file editing beside the transcript. It requires a mounted filesystem provider: the session Remote refuses `file.list`, `file.read`, and `file.write` as `unsupported` without one, and the browser then shows its listing error. Leave it out of automation-only surfaces, which mount no browser half at all.
+Choose it for a deployment whose users work against a local workspace and want in-place file editing beside the transcript. Edits are version-guarded: a save that would replace content written since the file was opened is refused, which matters when an agent edits the same workspace. It requires a mounted filesystem provider: the session Remote refuses `file.list`, `file.read`, and `file.write` as `unsupported` without one, and the browser then shows its listing error. Leave it out of automation-only surfaces, which mount no browser half at all.
 
 ### Minimal configuration
 
@@ -65,8 +65,8 @@ These limits define when the package is a poor fit. They are current package con
 
 - **Browsing starts at the Session workspace root and cannot walk above it.** The owner hands the browser one root; `Back` pops the trail it walked down and stops there, so a path outside the workspace is reachable only by opening a Session rooted there.
 - **A symlinked child navigates to its target.** The Host resolves each listed child, so opening a symlink opens the resolved path — the browser shows the target's location, not the link's.
-- **Saving is unconditional.** The editor writes the whole buffer through `file.write` with no conflict detection, so a file changed on disk after it was opened is overwritten without warning.
-- **No file-size or binary guard.** The overlay reads whatever `file.read` returns and renders it as text, so a very large or binary file is loaded in full into the browser.
+- **A conflict is reported, not merged.** A save carries the version the edit was based on, so a file changed on disk since it was opened is refused rather than overwritten — but resolving it means reloading and re-applying the edit by hand; there is no merge view.
+- **The read ceiling is a whole-file limit.** `file.read` refuses a file over `fileReadMaxBytes` (2 MiB by default) instead of returning a prefix, so a large log cannot be inspected through this surface at all.
 - **A listing is a snapshot.** Nothing re-lists a directory that changes on disk while it is open; leaving and re-entering it is what refreshes the rows.
 
 <a id="dev-note"></a>
