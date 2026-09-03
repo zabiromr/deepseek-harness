@@ -1437,6 +1437,27 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'signal', description: 'cancellation owned by the Remote stream carrier.' }],
         returns: 'one complete baseline followed by live replacement frames.',
       },
+      {
+        signature: '@Remote(\'file.read\') async fileRead(request: SessionFileReadRequest, signal: AbortSignal): Promise<SessionFileReadValue>',
+        description: 'Read the full content of an arbitrary file within the Session workspace.',
+        parameters: [{ name: 'request', description: 'absolute file path within the workspace.' }, { name: 'signal', description: 'cancellation signal for the resolve, stat, and read steps.' }],
+        returns: 'decoded UTF-8 file content.',
+        throws: ['TypertRemoteFailure when the file is absent, binary, or too large.'],
+      },
+      {
+        signature: '@Remote(\'file.list\') async fileList(request: SessionFileListRequest, signal: AbortSignal): Promise<SessionFileListValue>',
+        description: 'List the direct children of one directory within the Session workspace.',
+        parameters: [{ name: 'request', description: 'directory path resolved by the Host filesystem.' }, { name: 'signal', description: 'cancellation signal for the resolve, stat, and list steps.' }],
+        returns: 'the resolved directory path and its direct children in stable name order.',
+        throws: ['TypertRemoteFailure when the directory is absent or the path is not a directory.'],
+      },
+      {
+        signature: '@Remote(\'file.write\') async fileWrite(request: SessionFileWriteRequest, signal: AbortSignal): Promise<SessionFileWriteValue>',
+        description: 'Write full content to an arbitrary file within the Session workspace.',
+        parameters: [{ name: 'request', description: 'absolute file path and full content to write.' }, { name: 'signal', description: 'cancellation signal for the resolve and write steps.' }],
+        returns: 'confirmation of the write operation.',
+        throws: ['TypertRemoteFailure when the path is invalid or the write fails.'],
+      },
     ],
   },
   {
@@ -4861,6 +4882,38 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionEventWindow',
     declaration: 'export interface SessionEventWindow {\n    session: SessionHeader;\n    target: SessionEvent;\n    events: SessionEvent[];\n    startSeq: number;\n    endSeq: number;\n}',
+  },
+  {
+    name: 'SessionFileListEntry',
+    declaration: 'export interface SessionFileListEntry {\n    readonly name: string;\n    readonly path: string;\n    readonly type: \'file\' | \'directory\' | \'other\';\n}',
+  },
+  {
+    name: 'SessionFileListRequest',
+    declaration: 'export interface SessionFileListRequest {\n    readonly path: string;\n}',
+  },
+  {
+    name: 'SessionFileListValue',
+    declaration: 'export interface SessionFileListValue {\n    readonly path: string;\n    readonly entries: readonly SessionFileListEntry[];\n}',
+  },
+  {
+    name: 'SessionFileReadRequest',
+    declaration: 'export interface SessionFileReadRequest {\n    readonly path: string;\n}',
+  },
+  {
+    name: 'SessionFileReadValue',
+    declaration: 'export interface SessionFileReadValue {\n    readonly content: string;\n    readonly version: SessionFileVersion;\n}',
+  },
+  {
+    name: 'SessionFileVersion',
+    declaration: 'export type SessionFileVersion = Branded<\'session-file-version\'>;',
+  },
+  {
+    name: 'SessionFileWriteRequest',
+    declaration: 'export interface SessionFileWriteRequest {\n    readonly path: string;\n    readonly content: string;\n    readonly expectedVersion?: SessionFileVersion;\n}',
+  },
+  {
+    name: 'SessionFileWriteValue',
+    declaration: 'export interface SessionFileWriteValue {\n    readonly operation: \'create\' | \'update\';\n    readonly version: SessionFileVersion;\n}',
   },
   {
     name: 'SessionFollowFrame',
