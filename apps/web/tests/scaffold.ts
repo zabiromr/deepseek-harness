@@ -965,6 +965,18 @@ export function fixtureIdentity(
  * @param id - the session id the seed is realized for.
  * @returns the realized fixture text.
  */
+/**
+ * Escape a substitution for the inside of a JSON string. Seed fixtures are
+ * JSONL, so a Windows workspace path substituted raw turns its separators
+ * into invalid escapes and the line stops parsing; on a POSIX path this
+ * returns the input unchanged.
+ * @param value - the replacement text.
+ * @returns the text escaped for a JSON string body.
+ */
+function jsonStringBody(value: string): string {
+  return JSON.stringify(value).slice(1, -1)
+}
+
 export function realizeSeedFixture(scaffold: WebScaffold, fixtureText: string, id: string): string {
   const realized = fixtureText
     .split('{{sessionId}}').join(id)
@@ -972,11 +984,11 @@ export function realizeSeedFixture(scaffold: WebScaffold, fixtureText: string, i
     .replace(/\{\{session:([2-9]\d*)\}\}/g, (_token, ordinal: string) => `${id}-child-${ordinal}`)
     .replace(/\{\{(message|approval|workflow|command|rpc|retry|id):([1-9]\d*)\}\}/g, (_token, kind: string, ordinal: string) =>
       fixtureIdentity(kind as 'message' | 'approval' | 'workflow' | 'command' | 'rpc' | 'retry' | 'id', Number(ordinal)))
-    .split('{{cwd}}').join(scaffold.workspaceCwd)
+    .split('{{cwd}}').join(jsonStringBody(scaffold.workspaceCwd))
   const fixtureCwd = (JSON.parse(realized.split('\n', 1)[0]!) as { cwd?: string }).cwd
   return fixtureCwd === undefined
     ? realized
-    : realized.split(fixtureCwd).join(scaffold.workspaceCwd)
+    : realized.split(jsonStringBody(fixtureCwd)).join(jsonStringBody(scaffold.workspaceCwd))
 }
 
 /**

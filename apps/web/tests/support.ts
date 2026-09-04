@@ -18,17 +18,29 @@ export const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 export const ZH_BROWSER_LOCALE = 'zh-CN'
 
 /**
+ * Browser time zone every lane page runs in. The recorded session goldens
+ * carry the `clientTimeZone` the browser reported when they were captured, so
+ * pinning it here is what lets them replay on a host in any zone.
+ */
+export const LANE_BROWSER_TIME_ZONE = 'Asia/Shanghai'
+
+/**
  * Open the standard browser-test page advertising English before client boot.
  * This keeps role locators and goldens deterministic while leaving the Host
  * settings document free to override the provisional browser-derived locale;
  * scenarios asserting the Chinese surface advertise
- * {@link ZH_BROWSER_LOCALE} instead.
+ * {@link ZH_BROWSER_LOCALE} instead. The time zone is pinned for the same
+ * reason (see {@link LANE_BROWSER_TIME_ZONE}).
  * @param browser - Playwright browser owning the page.
  * @param height - Viewport height; width is fixed to the lane baseline.
  * @returns the initialized page.
  */
 export async function newEnglishPage(browser: Browser, height = 1000): Promise<Page> {
-  return await browser.newPage({ viewport: { width: 1680, height }, locale: 'en-US' })
+  return await browser.newPage({
+    viewport: { width: 1680, height },
+    locale: 'en-US',
+    timezoneId: LANE_BROWSER_TIME_ZONE,
+  })
 }
 
 /**
