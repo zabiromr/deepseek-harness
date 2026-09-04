@@ -589,6 +589,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Search and fetch providers register into one ctx.web seam; tool-web owns the stable model-facing names.',
   },
   {
+    key: 'memory',
+    pkg: 'memory',
+    title: 'Learned-memory seam',
+    mode: 'seam',
+    implementations: ['memory-domain', 'memory-ephemeral'],
+    consumers: ['memory-prompt', 'memory-decay', 'tool-self-reflect', 'tool-knowledge-base'],
+    note: 'Providers store evidence-bound lessons; the seam owns the evidence rule plus the scoring and selection functions, so a durable and an in-process store cannot disagree about what a lesson is worth.',
+  },
+  {
     key: 'spillStore',
     pkg: 'spill',
     title: 'Spill storage seam',

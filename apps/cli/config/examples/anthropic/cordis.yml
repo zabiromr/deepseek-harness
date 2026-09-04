@@ -1,0 +1,56 @@
+# Anthropic Claude (Opus) composition via @deepseek-ai/dsh-llm-pi-ai.
+# This is a PATCH OVERLAY: apply it over the headless profile with
+#   dsh --profile headless --patch apps/cli/config/examples/anthropic/cordis.yml
+#
+# The `llm-pi-ai:` section configures an `anthropic` provider route that
+# declares claude-opus-4-5 and claude-haiku-4-5. The `agent-spine` patch
+# retargets the main agent to use the anthropic route.
+#
+# Requirements:
+#   - `ANTHROPIC_API_KEY` set in the environment (or leave absent for
+#     ambient pi-ai discovery).
+#   - If using MAX subscription, set `baseURL` to the local server and
+#     `api: openai-completions`.
+#
+# To override for Anthropic MAX (offline desktop subscription): replace
+# `baseURL` and `api` below with your local MAX endpoint, e.g.:
+#   baseURL: http://localhost:11434
+#   api: openai-completions
+
+# Mount the pi-ai adapter alongside the existing DeepSeek adapter.
+# The `anthropic` route is registered under the `providers` dict.
+- id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
+  config:
+    providers:
+      anthropic:
+        apiKeyEnv: ANTHROPIC_API_KEY
+        # Defaults to https://api.anthropic.com (pi-ai's installed catalog);
+        # set baseURL here to point at a local MAX server or custom proxy.
+        models:
+          - id: claude-opus-4-5
+            contextWindow: 200000
+            maxTokens: 8192
+            reasoningEfforts:
+              off: null
+              high: high
+          - id: claude-haiku-4-5
+            contextWindow: 200000
+            maxTokens: 8192
+            reasoningEfforts:
+              off: null
+              high: high
+
+# Retarget the main agent to use the anthropic route with Claude Opus.
+- id: agent-spine
+  config:
+    agents:
+      - id: main
+        provider: anthropic
+        model: claude-opus-4-5
+        cwd: !!js process.cwd()
+    persona: |
+      You are headless-agent, a coding assistant powered by the {{model}} model.
+
+      Verify your work by running the code or tests. Keep answers brief and
+      factual.
