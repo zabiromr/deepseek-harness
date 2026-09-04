@@ -1,0 +1,35 @@
+# pi-ai fixture with anthropic (Claude) provider. Swaps llm-deepseek for
+# llm-pi-ai with an `anthropic` route and retargets the agent.
+- id: base
+  name: '@deepseek-ai/cordis-plugin-include'
+  config:
+    path: ../../cordis.yml
+    patches:
+      - id: llm-deepseek
+        name: '@deepseek-ai/dsh-llm-deepseek'
+        disabled: true
+      - insert:
+          - id: llm-pi-ai
+            name: '@deepseek-ai/dsh-llm-pi-ai'
+            config:
+              providers:
+                anthropic:
+                  apiKeyEnv: ANTHROPIC_API_KEY
+                  baseURL: !!js process.env.DSH_SNAPSHOT_BASE_URL
+                  reasoning: low
+                  modelOverrides:
+                    claude-opus-4-5:
+                      maxTokens: 1024
+                  streamIdleTimeoutMs: 1000
+      - id: agent-spine
+        config:
+          agents:
+            - id: main
+              provider: anthropic
+              model: claude-opus-4-5
+              cwd: !!js process.cwd()
+          workspaceContext: false
+          persona: 'Keyless pi-ai Anthropic compatibility snapshot.'
+      - id: persistence
+        config:
+          root: './.sessions'

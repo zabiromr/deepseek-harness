@@ -133,7 +133,11 @@ async function seedRecord(
 }
 
 /** Wait until queued fail-soft writes (event-listener fire-and-forget over real fs I/O) drain. */
-const settle = () => new Promise(resolve => setTimeout(resolve, 40))
+// Let the cache's asynchronous durable write reach disk. 40ms raced under
+// full-suite CPU contention; every real-timer case here configures a 60s
+// write interval, so a longer wait cannot manufacture an interval flush and
+// only strengthens the "nothing was written yet" assertions.
+const settle = () => new Promise(resolve => setTimeout(resolve, 250))
 
 afterEach(async () => {
   vi.useRealTimers()

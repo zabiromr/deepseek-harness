@@ -67,6 +67,7 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`settings/`](settings/README.zh.md) | 用户设置 seam + 基于文件的提供方 |
 | [`credentials/`](credentials/README.zh.md) | 凭据引用/记录 seam + 环境变量优先于 `.env` 的提供方 + 询问人类的授权 flow |
 | [`storage/`](storage/README.zh.md) | 非会话存储中枢 + 后端 + 领域形式 |
+| [`memory/`](memory/README.zh.md) | 习得记忆系列：带证据的教训 seam + 持久化与进程内提供方 + 摘要与衰减 |
 | [`workspace/`](workspace/README.zh.md) | Workspace 实体 |
 | [`sdk/`](sdk/README.zh.md) | 进程外 SDK：JSON-RPC 协议与 TypeScript 客户端／服务器 |
 | [`acp/`](acp/README.zh.md) | 仅面向自动化的 Agent Client Protocol 服务器 |

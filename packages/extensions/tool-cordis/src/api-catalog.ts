@@ -1200,6 +1200,60 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'memory',
+    summary: 'Abstract learned-memory service.',
+    description: 'Abstract learned-memory service. Subclass, implement every member, and load the subclass as a plugin — it registers as `ctx.memory` (one implementation per context; loading a second throws, cordis\' standard duplicate-service behavior).\n\nSemantics every implementation must honor:\n\n- record REJECTS a request citing no evidence, before any write.\n- confirm and contradict require NEW evidence and are the only ways a lesson\'s standing rises; nothing infers confirmation from a session merely completing.\n- recall searches every status by default, so a decayed lesson stays auditable; digest returns only `active` lessons.\n- EVERY method reports failure by REJECTING, never by throwing before it returns; a provider with a synchronous body wraps it in `promised`.\n- reclassify is pure arithmetic over stored records — it makes no model calls and never deletes a lesson.',
+    methods: [
+      {
+        signature: 'abstract readonly decay: DecayParams',
+        description: 'Decay parameters this implementation ranks and reclassifies by.',
+        parameters: [],
+      },
+      {
+        signature: 'abstract record(request: RecordLessonRequest): Promise<Lesson>',
+        description: 'Capture one lesson with its citations.',
+        parameters: [{ name: 'request', description: 'Scope, title, body, evidence, and tags.' }],
+        returns: 'the stored lesson; rejects with `missing-evidence` when uncited.',
+      },
+      {
+        signature: 'abstract confirm(id: LessonId, evidence: readonly LessonEvidence[]): Promise<Lesson>',
+        description: 'Raise a lesson\'s standing with new evidence and reset its decay clock.',
+        parameters: [{ name: 'id', description: 'The lesson to confirm.' }, { name: 'evidence', description: 'New citations supporting it; never empty.' }],
+        returns: 'the updated lesson; rejects `not-found` for an unknown id.',
+      },
+      {
+        signature: 'abstract contradict(id: LessonId, evidence: readonly LessonEvidence[]): Promise<Lesson>',
+        description: 'Lower a lesson\'s standing with evidence against it.',
+        parameters: [{ name: 'id', description: 'The lesson to contradict.' }, { name: 'evidence', description: 'New citations against it; never empty.' }],
+        returns: 'the updated lesson; rejects `not-found` for an unknown id.',
+      },
+      {
+        signature: 'abstract recall(query: RecallQuery): Promise<readonly Lesson[]>',
+        description: 'Search stored lessons, highest score first.',
+        parameters: [{ name: 'query', description: 'Text, tag, scope, and status filters plus a result cap.' }],
+        returns: 'the matching lessons, ranked.',
+      },
+      {
+        signature: 'abstract digest(query: DigestQuery): Promise<readonly Lesson[]>',
+        description: 'Select the `active` lessons that belong in the always-on prompt digest.',
+        parameters: [{ name: 'query', description: 'Scope and lesson cap.' }],
+        returns: 'the selected lessons, highest score first.',
+      },
+      {
+        signature: 'abstract get(id: LessonId): Promise<Lesson | undefined>',
+        description: 'Read one lesson by id.',
+        parameters: [{ name: 'id', description: 'The lesson to read.' }],
+        returns: 'the lesson, or `undefined` when absent.',
+      },
+      {
+        signature: 'abstract reclassify(now: number): Promise<ReclassifySummary>',
+        description: 'Apply decay to every stored lesson\'s status, using decay.',
+        parameters: [{ name: 'now', description: 'Epoch milliseconds to evaluate at.' }],
+        returns: 'counts of what moved.',
+      },
+    ],
+  },
+  {
     key: 'messageFeedback',
     summary: 'Storage-domain sidecar service.',
     description: 'Storage-domain sidecar service. It inspects persisted Session history and never creates or resumes an Agent or Session.',
@@ -3835,6 +3889,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type CredentialRef = Branded<\'CredentialRef\'>;',
   },
   {
+    name: 'DecayParams',
+    declaration: 'export interface DecayParams {\n    readonly halfLifeMs: number;\n    readonly dormantFloor: number;\n    readonly retireFloor: number;\n}',
+  },
+  {
     name: 'DeepSeekLlmApiExtensionMap',
     declaration: 'export interface DeepSeekLlmApiExtensionMap {\n}',
   },
@@ -3857,6 +3915,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'DiffResultView',
     declaration: 'export interface DiffResultView {\n    card: \'diff\';\n    title?: string;\n    diffs: FileDiff[];\n}',
+  },
+  {
+    name: 'DigestQuery',
+    declaration: 'export interface DigestQuery {\n    readonly scope: LessonScope;\n    readonly maxLessons: number;\n}',
   },
   {
     name: 'DirectoryEntry',
@@ -4235,6 +4297,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface KvUnitDescriptor {\n    readonly name: string;\n    readonly version: number;\n    readonly tables: readonly string[];\n    readonly hasGlobal: boolean;\n    readonly layout?: \'single\' | \'per-record\';\n}',
   },
   {
+    name: 'Lesson',
+    declaration: 'export interface Lesson {\n    readonly id: LessonId;\n    readonly scope: LessonScope;\n    readonly title: string;\n    readonly body: string;\n    readonly evidence: readonly LessonEvidence[];\n    readonly tags: readonly string[];\n    readonly createdAt: number;\n    readonly lastConfirmedAt: number;\n    readonly confirmations: number;\n    readonly contradictions: number;\n    readonly status: LessonStatus;\n}',
+  },
+  {
+    name: 'LessonEvidence',
+    declaration: 'export interface LessonEvidence {\n    readonly session: SessionId;\n    readonly seq: readonly number[];\n}',
+  },
+  {
+    name: 'LessonId',
+    declaration: 'export type LessonId = Branded<\'LessonId\'>;',
+  },
+  {
+    name: 'LessonScope',
+    declaration: 'export type LessonScope = string;',
+  },
+  {
+    name: 'LessonStatus',
+    declaration: 'export type LessonStatus = \'active\' | \'dormant\' | \'retired\';',
+  },
+  {
     name: 'LlmAdapter',
     declaration: 'export abstract class LlmAdapter {\n    providerInfo(provider: string): LlmProviderInfo;\n    providerRetryPolicy(_provider: string): ResolvedRetryPolicy | undefined;\n    imageRequestPricing(_provider: string, _model: string): LlmImageRequestPricing | undefined;\n    listModels(_provider: string): Promise<readonly LlmModelInfo[]>;\n    resolveModel(provider: string, model: string, _signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall>;\n    abstract stream(options: GenerateOptions): AsyncIterable<StreamChunk>;\n}',
   },
@@ -4597,6 +4679,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ReasoningEffortId',
     declaration: 'export type ReasoningEffortId = Branded<\'ReasoningEffortId\'>;',
+  },
+  {
+    name: 'RecallQuery',
+    declaration: 'export interface RecallQuery {\n    readonly text?: string;\n    readonly tags?: readonly string[];\n    readonly scope?: LessonScope;\n    readonly statuses?: readonly LessonStatus[];\n    readonly limit: number;\n}',
+  },
+  {
+    name: 'ReclassifySummary',
+    declaration: 'export interface ReclassifySummary {\n    readonly demoted: number;\n    readonly retired: number;\n    readonly unchanged: number;\n}',
+  },
+  {
+    name: 'RecordLessonRequest',
+    declaration: 'export interface RecordLessonRequest {\n    readonly scope: LessonScope;\n    readonly title: string;\n    readonly body: string;\n    readonly evidence: readonly LessonEvidence[];\n    readonly tags?: readonly string[];\n}',
   },
   {
     name: 'RedactedSecret',
