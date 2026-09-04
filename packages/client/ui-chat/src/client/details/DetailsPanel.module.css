@@ -92,3 +92,19 @@
 .code[data-error] {
   color: var(--dsw-alias-state-error-primary);
 }
+
+.browse {
+  flex: none;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xs-13);
+  cursor: pointer;
+}
+
+.browse:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}

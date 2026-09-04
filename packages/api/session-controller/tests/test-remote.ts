@@ -29,6 +29,12 @@ import type {
   SessionCreateValue,
   SessionForkRequest,
   SessionForkValue,
+  SessionFileListRequest,
+  SessionFileListValue,
+  SessionFileReadRequest,
+  SessionFileReadValue,
+  SessionFileWriteRequest,
+  SessionFileWriteValue,
   SessionFollowFrame,
   SessionFollowRequest,
   SessionListRequest,
@@ -67,6 +73,9 @@ export interface TestSessionRemote {
     request: SessionOpenWorkspacePathRequest,
     signal?: AbortSignal,
   ): Promise<RemoteResult<SessionOpenWorkspacePathValue>>
+  fileList(request: SessionFileListRequest, signal?: AbortSignal): Promise<RemoteResult<SessionFileListValue>>
+  fileRead(request: SessionFileReadRequest, signal?: AbortSignal): Promise<RemoteResult<SessionFileReadValue>>
+  fileWrite(request: SessionFileWriteRequest, signal?: AbortSignal): Promise<RemoteResult<SessionFileWriteValue>>
   page(request: SessionPageRequest, signal?: AbortSignal): Promise<RemoteResult<SessionPage>>
   follow(request: SessionFollowRequest, signal?: AbortSignal): AsyncIterable<SessionFollowFrame>
   control(signal?: AbortSignal): AsyncIterable<SessionControlFrame>
@@ -265,6 +274,18 @@ export function createSessionTestRemote(
     cancel: request => remoteResult(() => direct.cancel(request)),
     openWorkspacePath: (request, signal = new AbortController().signal) => remoteResult(
       () => direct.openWorkspacePath(request, signal),
+      signal,
+    ),
+    fileList: (request, signal = new AbortController().signal) => remoteResult(
+      () => direct.fileList(request, signal),
+      signal,
+    ),
+    fileRead: (request, signal = new AbortController().signal) => remoteResult(
+      () => direct.fileRead(request, signal),
+      signal,
+    ),
+    fileWrite: (request, signal = new AbortController().signal) => remoteResult(
+      () => direct.fileWrite(request, signal),
       signal,
     ),
     page: (request, signal = new AbortController().signal) => remoteResult(

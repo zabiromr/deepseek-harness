@@ -127,6 +127,16 @@
         "tests/**/*.tsx"
       ]
     },
+    "packages/client/ui-file-browser": {
+      "entry": [
+        "tests/**/*.spec.tsx"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "tests/**/*.tsx"
+      ]
+    },
     "packages/client/ui-goal": {
       "entry": [
         "tests/**/*.spec.tsx"

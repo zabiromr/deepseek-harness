@@ -151,7 +151,11 @@ export function renderToolDetails(
   t: TranslateNS<'conversation'>,
   generation?: ConnectionGeneration,
 ): DetailsSlotProps['renderSlot'] {
-  return (_key, owner) => {
+  return (key, owner, opts) => {
+    // This composition occupies only the Tool key: every other declared child
+    // of the details panel renders the owner's fallback, as it does in a
+    // deployment that mounts no registrant for it.
+    if (key !== 'conversation.details.tool') return <>{opts?.fallback ?? null}</>
     // PropsRenderSlots keeps its key generic even for this one-key share;
     // recover the concrete owner selected by the adapter's fixed slot.
     const details = owner as unknown as DetailsToolOwnerProps

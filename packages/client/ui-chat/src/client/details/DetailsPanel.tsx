@@ -1,5 +1,6 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import { CodeBlock } from '@deepseek-ai/dsh-client-ui-primitives'
+import { resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import { shallowEqual } from '@deepseek-ai/dsh-client-store'
 import type { DetailsSlotProps } from '../contract/slots.ts'
 import type { ChatSnapshot, RunningToolCall, ToolCallBlock, ToolResultNode } from '../contract/snapshot.ts'
@@ -45,10 +46,13 @@ function rawResultText(block: ToolCallBlock): string {
   return parts.join('\n')
 }
 
-export function DetailsPanel({ useChat, useSessions, sessionId, useStore, renderSlot, closeDetails, t }: DetailsPanelProps) {
+export function DetailsPanel({
+  useChat, useSessions, sessionId, useStore, actions, renderSlot, closeDetails, t,
+}: DetailsPanelProps) {
   const selection = useStore(s => s.selection)
   // Session workspace root: a card model resolves omitted or relative
-  // tool paths against it without reading Session services.
+  // tool paths against it without reading Session services, and the file
+  // browser starts its listing there.
   const sessionCwd = useSessions(list => list.byId[sessionId]?.cwd)
   const callId = selection?.callId
   // materialFor builds a fresh wrapper; shallowEqual short-circuits on its
@@ -56,12 +60,25 @@ export function DetailsPanel({ useChat, useSessions, sessionId, useStore, render
   const material = useChat(
     s => (callId === undefined ? null : materialFor(s, callId)),
     (a, b) => shallowEqual(a, b))
+  // A Tool view can hand one of its paths to the browser. Clearing the
+  // selection is what actually swaps the body, so this holds only the path
+  // the browser should open when it renders.
+  const [browsePath, setBrowsePath] = useState<string | null>(null)
+
   return (
     <div className={css.root}>
       <div className={css.header}>
         <div className={css.title}>
           {selection === null ? t('details.title') : material?.name ?? selection.toolName ?? t('details.title')}
         </div>
+        {callId !== undefined && (
+          <button
+            type="button" className={css.browse}
+            onClick={() => { setBrowsePath(null); actions.select(null) }}
+          >
+            {t('details.fileBrowser')}
+          </button>
+        )}
         <button
           type="button" className={css.close} aria-label={t('details.close')}
           onClick={() => { closeDetails() }}
@@ -73,7 +90,14 @@ export function DetailsPanel({ useChat, useSessions, sessionId, useStore, render
       </div>
       <div className={css.body}>
         {selection === null || callId === undefined
-          ? <div className={css.empty}>{t('details.empty')}</div>
+          // No selected call: the panel is the workspace file browser, and
+          // stays on its empty message wherever no browser is registered.
+          ? renderSlot('conversation.details.browser', {
+            root: sessionCwd,
+            ...browsePath === null ? {} : { openPath: browsePath },
+          }, {
+            fallback: <div className={css.empty}>{t('details.empty')}</div>,
+          })
           : material === null
             ? <div className={css.empty}>{t('details.notInWindow')}</div>
             : (
@@ -91,7 +115,14 @@ export function DetailsPanel({ useChat, useSessions, sessionId, useStore, render
                       would otherwise carry into the next selection because the
                       panel does not unmount between calls. */}
                   <Fragment key={callId}>
-                    {renderSlot('conversation.details.tool', { block: material.block, cwd: sessionCwd }, {
+                    {renderSlot('conversation.details.tool', {
+                      block: material.block,
+                      cwd: sessionCwd,
+                      browseFile: (path: string) => {
+                        setBrowsePath(resolveWorkspacePath(sessionCwd, path))
+                        actions.select(null)
+                      },
+                    }, {
                       fallback: 'kind' in material.block
                         ? (
                           <pre className={css.code} data-error={material.block.isError || undefined}>

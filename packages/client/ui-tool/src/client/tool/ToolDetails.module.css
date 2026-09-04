@@ -44,3 +44,24 @@
   line-height: 20px;
   color: var(--dsw-alias-label-tertiary);
 }
+
+.cardFooter {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 0 0;
+}
+
+.footerAction {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xs-13);
+  cursor: pointer;
+}
+
+.footerAction:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}

@@ -7,6 +7,7 @@ import { canOpenNativePath, openNativePath } from '@deepseek-ai/dsh-native-comma
 import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { FsError, type FileSystem, type FsTarget, type FsVersion } from '@deepseek-ai/dsh-fs'
 import {
   ApiSessionAgentController,
   inspectApiSession,
@@ -29,6 +30,13 @@ import type {
   SessionControlFrame,
   SessionCreateRequest,
   SessionCreateValue,
+  SessionFileListRequest,
+  SessionFileListValue,
+  SessionFileVersion,
+  SessionFileReadRequest,
+  SessionFileReadValue,
+  SessionFileWriteRequest,
+  SessionFileWriteValue,
   SessionFollowFrame,
   SessionFollowRequest,
   SessionForkRequest,
@@ -67,6 +75,8 @@ declare module '@deepseek-ai/cordis' {
 export interface Config {
   /** Maximum cold Session artifact size eligible for one full projection observation. */
   readonly coldBlankProbeMaxBytes?: number
+  /** Exclusive byte ceiling on one `file.read`; a larger file is refused rather than loaded. */
+  readonly fileReadMaxBytes?: number
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
 }
@@ -78,6 +88,14 @@ export interface SessionControllerInternals {
   /** Native handoff availability probe. */
   readonly canOpenPath?: () => boolean
 }
+
+/**
+ * Byte ceiling on one `file.read`. A browser holds the whole response in
+ * memory and renders it as text, so the default keeps a stray large or
+ * generated file from being loaded in full; deployments editing bigger files
+ * raise `fileReadMaxBytes`.
+ */
+const DEFAULT_FILE_READ_MAX_BYTES = 2 * 1024 * 1024
 
 /** Host service backing the generated `ctx.remote.session` namespace. */
 export class SessionController extends TypertRemoteService {
@@ -95,6 +113,7 @@ export class SessionController extends TypertRemoteService {
 
   static Config: z<Config> = z.object({
     coldBlankProbeMaxBytes: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_BYTES),
+    fileReadMaxBytes: z.natural().default(DEFAULT_FILE_READ_MAX_BYTES),
     nativeOpen: z.boolean(),
   })
 
@@ -105,6 +124,7 @@ export class SessionController extends TypertRemoteService {
   private readonly listState: ApiSessionList
   private readonly openPath: (path: string, signal: AbortSignal) => Promise<void>
   private readonly canOpenPath: () => boolean
+  private readonly fileReadMaxBytes: number
   private readonly promotions = new Set<Promise<void>>()
 
   /**
@@ -127,6 +147,7 @@ export class SessionController extends TypertRemoteService {
       ctx,
       config.coldBlankProbeMaxBytes ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES,
     )
+    this.fileReadMaxBytes = config.fileReadMaxBytes ?? DEFAULT_FILE_READ_MAX_BYTES
     this.openPath = internals.openPath ?? openNativePath
     this.canOpenPath = internals.canOpenPath
       ?? (() => config.nativeOpen ?? (internals.openPath !== undefined || canOpenNativePath()))
@@ -388,6 +409,163 @@ export class SessionController extends TypertRemoteService {
   @Remote({ mode: 'stream' })
   control(signal: AbortSignal): AsyncIterable<SessionControlFrame> {
     return this.controlState.control(signal)
+  }
+
+  /**
+   * Read the full content of an arbitrary file within the Session workspace.
+   * @param request - absolute file path within the workspace.
+   * @param signal - cancellation signal for the resolve, stat, and read steps.
+   * @returns decoded UTF-8 file content.
+   * @throws TypertRemoteFailure when the file is absent, binary, or too large.
+   */
+  @Remote('file.read')
+  async fileRead(request: SessionFileReadRequest, signal: AbortSignal): Promise<SessionFileReadValue> {
+    const fs = this.fileSystem()
+    const target = await fs.resolve(request.path, { signal })
+    const info = await fs.stat(target, signal)
+    if (info === undefined) {
+      throw new TypertRemoteFailure({
+        code: 'file-not-found',
+        message: `file not found: ${request.path}`,
+        details: { path: request.path },
+      })
+    }
+    if (info.type !== 'file') {
+      throw new TypertRemoteFailure({
+        code: 'not-a-file',
+        message: `${request.path} is not a regular file`,
+        details: { path: request.path, type: info.type },
+      })
+    }
+    // Refuse by the stat size before reading: the caller holds the whole
+    // response in memory, so an oversized file must never be decoded at all.
+    if (info.size !== undefined && info.size > this.fileReadMaxBytes) {
+      throw new TypertRemoteFailure({
+        code: 'too-large',
+        message: `${request.path} is ${String(info.size)} bytes, over the ${String(this.fileReadMaxBytes)} byte read limit`,
+        details: { path: request.path, size: info.size, limit: this.fileReadMaxBytes },
+      })
+    }
+    const content = await this.readTextOrRefuse(fs, target, request.path, signal)
+    return { content, version: info.version as string as SessionFileVersion }
+  }
+
+  /**
+   * Read text, converting the backend's binary refusal into a Remote failure
+   * a caller can present. Every other filesystem error keeps its own reporting.
+   * @param fs - the mounted filesystem.
+   * @param target - the resolved file.
+   * @param path - the requested path, for the failure message.
+   * @param signal - cancellation signal for the read.
+   * @returns the decoded text.
+   * @throws TypertRemoteFailure when the file is not UTF-8 text.
+   */
+  private async readTextOrRefuse(
+    fs: FileSystem,
+    target: FsTarget,
+    path: string,
+    signal: AbortSignal,
+  ): Promise<string> {
+    try {
+      return await fs.readText(target, signal)
+    } catch (error: unknown) {
+      if (error instanceof FsError && error.code === 'FS_NOT_TEXT') {
+        throw new TypertRemoteFailure({
+          code: 'not-text',
+          message: `${path} is not UTF-8 text`,
+          details: { path },
+        })
+      }
+      throw error
+    }
+  }
+
+  /**
+   * The workspace filesystem backing the file Remotes. It stays an optional
+   * read: a deployment that mounts no filesystem provider still serves every
+   * other Session operation, and only the file Remotes refuse.
+   * @returns the mounted filesystem capability.
+   * @throws TypertRemoteFailure when the deployment mounts no filesystem provider.
+   */
+  private fileSystem(): FileSystem {
+    const fs = this.ctx.get('fs')
+    if (fs === undefined) {
+      throw new TypertRemoteFailure({
+        code: 'unsupported',
+        message: 'this deployment mounts no filesystem provider',
+        details: {},
+      })
+    }
+    return fs
+  }
+
+  /**
+   * List the direct children of one directory within the Session workspace.
+   * @param request - directory path resolved by the Host filesystem.
+   * @param signal - cancellation signal for the resolve, stat, and list steps.
+   * @returns the resolved directory path and its direct children in stable name order.
+   * @throws TypertRemoteFailure when the directory is absent or the path is not a directory.
+   */
+  @Remote('file.list')
+  async fileList(request: SessionFileListRequest, signal: AbortSignal): Promise<SessionFileListValue> {
+    const fs = this.fileSystem()
+    const target = await fs.resolve(request.path, { signal })
+    const info = await fs.stat(target, signal)
+    if (info === undefined) {
+      throw new TypertRemoteFailure({
+        code: 'file-not-found',
+        message: `directory not found: ${request.path}`,
+        details: { path: request.path },
+      })
+    }
+    if (info.type !== 'directory') {
+      throw new TypertRemoteFailure({
+        code: 'not-a-directory',
+        message: `${request.path} is not a directory`,
+        details: { path: request.path, type: info.type },
+      })
+    }
+    const entries = await fs.listDir(target, signal)
+    return {
+      path: fs.processPath(target),
+      entries: entries.map(entry => ({
+        name: entry.name,
+        path: fs.processPath(entry.target),
+        type: entry.type,
+      })),
+    }
+  }
+
+  /**
+   * Write full content to an arbitrary file within the Session workspace.
+   * @param request - absolute file path and full content to write.
+   * @param signal - cancellation signal for the resolve and write steps.
+   * @returns confirmation of the write operation.
+   * @throws TypertRemoteFailure when the path is invalid or the write fails.
+   */
+  @Remote('file.write')
+  async fileWrite(request: SessionFileWriteRequest, signal: AbortSignal): Promise<SessionFileWriteValue> {
+    const fs = this.fileSystem()
+    const target = await fs.resolve(request.path, { signal })
+    // An expected version makes the write conditional: the backend rejects it
+    // when the file moved on since the caller read it, so a stale buffer
+    // reports a conflict instead of silently replacing newer content.
+    const expected = request.expectedVersion === undefined
+      ? undefined
+      : { kind: 'replaceIfVersion' as const, version: request.expectedVersion as string as FsVersion }
+    try {
+      const outcome = await fs.writeText(target, request.content, expected, signal)
+      return { operation: outcome.operation, version: outcome.version as string as SessionFileVersion }
+    } catch (error: unknown) {
+      if (error instanceof FsError && error.code === 'FS_STALE_VERSION') {
+        throw new TypertRemoteFailure({
+          code: 'stale-version',
+          message: `${request.path} changed since it was read`,
+          details: { path: request.path },
+        })
+      }
+      throw error
+    }
   }
 
 }

@@ -187,6 +187,8 @@
       "@deepseek-ai/dsh-client-ui-chat/client": ["./packages/client/ui-chat/src/client/index.ts"],
       "@deepseek-ai/dsh-client-ui-conversation": ["./packages/client/ui-conversation/src"],
       "@deepseek-ai/dsh-client-ui-conversation/client": ["./packages/client/ui-conversation/src/client/index.ts"],
+      "@deepseek-ai/dsh-client-ui-file-browser": ["./packages/client/ui-file-browser/src"],
+      "@deepseek-ai/dsh-client-ui-file-browser/client": ["./packages/client/ui-file-browser/src/client/index.ts"],
       "@deepseek-ai/dsh-client-ui-tool": ["./packages/client/ui-tool/src"],
       "@deepseek-ai/dsh-client-ui-deliverables": ["./packages/client/ui-deliverables/src"],
       "@deepseek-ai/dsh-client-ui-workflow-run": ["./packages/client/ui-workflow-run/src"],

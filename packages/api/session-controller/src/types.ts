@@ -373,6 +373,73 @@ export interface SessionOpenWorkspacePathValue {
   readonly opened: true
 }
 
+/** Request to read an arbitrary file through the Session's workspace filesystem. */
+export interface SessionFileReadRequest {
+  /** Absolute file path within the workspace, resolved by the Host filesystem. */
+  readonly path: string
+}
+
+/**
+ * Opaque freshness token of one workspace file, minted by the Host filesystem.
+ * A Client returns the token it read to prove which content its edit replaces;
+ * it carries no meaning to the Client and is never parsed or compared there.
+ */
+export type SessionFileVersion = Branded<'session-file-version'>
+
+/** Response carrying the full file content for a read request. */
+export interface SessionFileReadValue {
+  /** UTF-8 decoded file content. */
+  readonly content: string
+  /** Freshness token of the content just read, for a guarded write back. */
+  readonly version: SessionFileVersion
+}
+
+/** Request to write an arbitrary file through the Session's workspace filesystem. */
+export interface SessionFileWriteRequest {
+  /** Absolute file path within the workspace, resolved by the Host filesystem. */
+  readonly path: string
+  /** Full UTF-8 text content to write. */
+  readonly content: string
+  /**
+   * The version the edit was based on. When present the write applies only
+   * while the file still holds that version and fails `stale-version`
+   * otherwise; omitting it overwrites whatever is on disk.
+   */
+  readonly expectedVersion?: SessionFileVersion
+}
+
+/** Confirmation after an arbitrary file write. */
+export interface SessionFileWriteValue {
+  /** Whether the write created or updated the file. */
+  readonly operation: 'create' | 'update'
+  /** Freshness token of the content just written, for a further guarded write. */
+  readonly version: SessionFileVersion
+}
+
+/** Request to list one directory through the Session's workspace filesystem. */
+export interface SessionFileListRequest {
+  /** Directory path resolved by the Host filesystem. */
+  readonly path: string
+}
+
+/** One direct child of a listed directory. */
+export interface SessionFileListEntry {
+  /** Basename of the child inside the listed directory. */
+  readonly name: string
+  /** Host path of the child, ready for a follow-up list or read. */
+  readonly path: string
+  /** Whether the child is a regular file, a directory, or something else. */
+  readonly type: 'file' | 'directory' | 'other'
+}
+
+/** Direct children of one directory, in the filesystem's stable name order. */
+export interface SessionFileListValue {
+  /** Host path of the directory that was listed, as the Host resolved it. */
+  readonly path: string
+  /** The direct children. */
+  readonly entries: readonly SessionFileListEntry[]
+}
+
 /** Client-minted prompt identity used to reconcile optimistic and durable messages. */
 export type SessionRequestId = Branded<'session-request-id'>
 
