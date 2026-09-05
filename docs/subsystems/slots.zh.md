@@ -159,7 +159,8 @@ root
 │  │  └─ conversation.hero.workspace.directoryFlow
 │  └─ conversation.hero.agentPreset
 ├─ details
-│  └─ conversation.details.tool
+│  ├─ conversation.details.tool
+│  └─ conversation.details.browser
 └─ shell.overlay
 ```
 

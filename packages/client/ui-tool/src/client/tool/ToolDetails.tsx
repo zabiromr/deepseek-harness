@@ -21,8 +21,8 @@ import css from './ToolDetails.module.css'
  * @returns the details output body.
  */
 export function ToolDetails({
-  block, cwd, useHostInfo, t,
-}: Pick<ToolDetailsProps, 'block' | 'cwd' | 'useHostInfo' | 't'>) {
+  block, cwd, browseFile, useHostInfo, t,
+}: Pick<ToolDetailsProps, 'block' | 'cwd' | 'browseFile' | 'useHostInfo' | 't'>) {
   const home = useHostInfo(info => info.home)
   const terminalModel = terminalCardModel(block, cwd)
   if (terminalModel !== null) {
@@ -37,7 +37,23 @@ export function ToolDetails({
     )
   }
   const read = readCardModel(block, cwd, home)
-  if (read !== null) return <ReadBlock {...read} labels={readBlockLabels(t)} className={css.read} />
+  if (read !== null) {
+    const { path, ...card } = read
+    return (
+      <>
+        <ReadBlock {...card} labels={readBlockLabels(t)} className={css.read} />
+        {/* Only offered where the panel mounted a browser: this call read a
+            snapshot, and editing belongs to the surface that owns the file. */}
+        {browseFile !== undefined && (
+          <div className={css.cardFooter}>
+            <button type="button" className={css.footerAction} onClick={() => { browseFile(path) }}>
+              {t('read.openInBrowser')}
+            </button>
+          </div>
+        )}
+      </>
+    )
+  }
   const diff = diffCardModel(block)
   if (diff !== null) return <DiffBlock {...diff.card} labels={diffBlockLabels(t)} className={css.cardBody} />
   const search = searchCardModel(block)

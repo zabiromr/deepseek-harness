@@ -78,7 +78,7 @@ const settled = (over?: Partial<ToolResultNode>): ToolResultNode => ({
 describe('readCardModel', () => {
   it('derives the card from settled read metadata and its raw envelope', () => {
     expect(readCardModel(settled())).toEqual({
-      label: 'src/a.ts', lines: sampleLines, totalLines: 180, lang: 'ts',
+      label: 'src/a.ts', path: 'src/a.ts', lines: sampleLines, totalLines: 180, lang: 'ts',
     })
   })
 

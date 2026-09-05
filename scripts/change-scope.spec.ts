@@ -2,9 +2,13 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { renderChangeScope } from './change-scope.ts'
+
+// Each case builds a real git repository and runs the CLI against it; the 5s
+// default races under full-suite CPU contention.
+vi.setConfig({ testTimeout: 120_000 })
 
 interface Report {
   formatVersion: number

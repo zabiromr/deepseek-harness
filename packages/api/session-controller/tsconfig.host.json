@@ -41,6 +41,7 @@
     { "path": "../../session-query/session-query" },
     { "path": "../../skill/skill" },
     { "path": "../../subagent/subagent" },
+    { "path": "../../fs/fs" },
     { "path": "../../util/time" },
     { "path": "../../typert/protocol" },
     { "path": "../../typert/registry" },

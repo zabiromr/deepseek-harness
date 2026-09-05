@@ -40,6 +40,13 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`, `owning Agent session` | `tool/call`, `todo/write`, `tool/result` | - | todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task. |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`, `ctx.workflowEngine`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents the script children)` | `tool/call`, `tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`, `web_search` | `ctx.tools`, `ctx.web`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps. |
+| `@deepseek-ai/dsh-tool-self-reflect` | `tool-self-reflect` | `ctx.tools`, `ctx.memory` | `tool/call`, `durable lesson record`, `tool/result` | - | The write side of the learned-memory seam. Every call MUST cite session events; an uncited call is rejected before any write, because a lesson that cannot be replayed against the session log must never re-enter a prompt. `confirm` resets the decay clock of a lesson and `contradict` does not, so arguing against a stale lesson cannot freshen it. The catalog mounts the in-process memory provider; a deployment normally mounts the durable one. |
+| `@deepseek-ai/dsh-tool-knowledge-base` | `tool-knowledge-base` | `ctx.tools`, `ctx.memory` | `tool/call`, `tool/result` | - | The read side of the learned-memory seam, for what the always-on prompt digest cannot serve: topic search, the evidence behind a lesson, and lessons that have decayed out of the digest but remain on the record. The catalog shows `allowCrossWorkspace: false`, which pins every result to the workspace of the calling session plus globally-scoped lessons. |
+| `@deepseek-ai/dsh-tool-plugin-evolver` | `tool-plugin-evolver` | `ctx.tools` | `tool/call`, `tool/result` | - | Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet. |
+| `@deepseek-ai/dsh-tool-schema-evolver` | `tool-schema-evolver` | `ctx.tools` | `tool/call`, `tool/result` | - | Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet. |
+| `@deepseek-ai/dsh-tool-adversarial-reviewer` | `tool-adversarial-reviewer` | `ctx.tools` | `tool/call`, `tool/result` | - | Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet. |
+| `@deepseek-ai/dsh-tool-automated-benchmarker` | `tool-automated-benchmarker` | `ctx.tools` | `tool/call`, `tool/result` | - | Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet. |
+| `@deepseek-ai/dsh-tool-config-autofix` | `tool-config-autofix` | `ctx.tools` | `tool/call`, `tool/result` | - | Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet. |
 
 <a id="deepseek-aidsh-tool-ask-user"></a>
 
@@ -2223,3 +2230,265 @@ Search the web for current information. Provide 1–4 queries in the required qu
 Source: [`packages/web/tool-web/src/index.ts`](../packages/web/tool-web/src/index.ts)
 
 web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps.
+
+<a id="deepseek-aidsh-tool-self-reflect"></a>
+
+## `@deepseek-ai/dsh-tool-self-reflect`
+
+### `tool-self-reflect`
+
+Record a lesson learned from this session so later sessions inherit it, or restate an existing lesson against new evidence. Every call MUST cite the session events that justify it: pass the `seq` numbers of the relevant events (from session history or the session-query tools). A lesson without citations is rejected. Use `record` when you learned something a future session should know — a wrong assumption you corrected, a project-specific convention, a tool that behaved unexpectedly. Use `confirm` when a lesson already in your prompt proved right again, and `contradict` when it misled you; a contradicted lesson loses standing fast, so contradict promptly rather than silently working around a stale lesson. Write the lesson so it is actionable without this session for context: state the circumstance and what to do.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Capture a new lesson, or restate an existing one against new evidence.",
+      "enum": [
+        "record",
+        "confirm",
+        "contradict"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "description": "One line stating what to do differently. Required for `record`."
+    },
+    "body": {
+      "type": "string",
+      "description": "The lesson: the circumstance it applies to and the action to take. Required for `record`."
+    },
+    "lesson_id": {
+      "type": "string",
+      "description": "The lesson being restated. Required for `confirm` and `contradict`."
+    },
+    "scope": {
+      "type": "string",
+      "description": "Workspace the lesson applies to. Defaults to this session's working directory; `*` means every workspace."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Optional retrieval tags.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Citations justifying this call; never empty.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "session": {
+            "type": "string",
+            "description": "Session holding the cited events. Defaults to the current session."
+          },
+          "seq": {
+            "type": "array",
+            "description": "Sequence numbers of the cited events, ascending.",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "seq"
+        ]
+      }
+    }
+  },
+  "required": [
+    "action",
+    "evidence"
+  ]
+}
+```
+
+Source: [`packages/feedback/tool-self-reflect/src/index.ts`](../packages/feedback/tool-self-reflect/src/index.ts)
+
+The write side of the learned-memory seam. Every call MUST cite session events; an uncited call is rejected before any write, because a lesson that cannot be replayed against the session log must never re-enter a prompt. `confirm` resets the decay clock of a lesson and `contradict` does not, so arguing against a stale lesson cannot freshen it. The catalog mounts the in-process memory provider; a deployment normally mounts the durable one.
+
+<a id="deepseek-aidsh-tool-knowledge-base"></a>
+
+## `@deepseek-ai/dsh-tool-knowledge-base`
+
+### `tool-knowledge-base`
+
+Search the lessons recorded by earlier sessions. Your prompt already carries the highest-standing active lessons for this workspace, so reach for this tool when you need something the digest does not show: lessons about a specific topic, the evidence behind a lesson you want to act on, or lessons that have faded (`dormant` or `retired`) but may still apply. Results carry the citations that justified each lesson, so you can read the original session events before trusting one. To change a lesson's standing, use the reflection tool rather than this one.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Case-insensitive substring matched against title, body, and tags. Omit to list by standing alone."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Only lessons carrying every listed tag.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "statuses": {
+      "type": "array",
+      "description": "Standings to include. Omit to search every standing, including faded lessons.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "active",
+          "dormant",
+          "retired"
+        ]
+      }
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum lessons to return; capped by the deployment."
+    }
+  }
+}
+```
+
+Source: [`packages/feedback/tool-knowledge-base/src/index.ts`](../packages/feedback/tool-knowledge-base/src/index.ts)
+
+The read side of the learned-memory seam, for what the always-on prompt digest cannot serve: topic search, the evidence behind a lesson, and lessons that have decayed out of the digest but remain on the record. The catalog shows `allowCrossWorkspace: false`, which pins every result to the workspace of the calling session plus globally-scoped lessons.
+
+<a id="deepseek-aidsh-tool-plugin-evolver"></a>
+
+## `@deepseek-ai/dsh-tool-plugin-evolver`
+
+### `tool-plugin-evolver`
+
+Evolve plugin configurations based on performance metrics.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/extensions/tool-plugin-evolver/src/index.ts`](../packages/extensions/tool-plugin-evolver/src/index.ts)
+
+Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet.
+
+<a id="deepseek-aidsh-tool-schema-evolver"></a>
+
+## `@deepseek-ai/dsh-tool-schema-evolver`
+
+### `tool-schema-evolver`
+
+Automatically tune tool schemas based on usage data.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/extensions/tool-schema-evolver/src/index.ts`](../packages/extensions/tool-schema-evolver/src/index.ts)
+
+Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet.
+
+<a id="deepseek-aidsh-tool-adversarial-reviewer"></a>
+
+## `@deepseek-ai/dsh-tool-adversarial-reviewer`
+
+### `tool-adversarial-reviewer`
+
+Self-critique via subagent review.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/extensions/tool-adversarial-reviewer/src/index.ts`](../packages/extensions/tool-adversarial-reviewer/src/index.ts)
+
+Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet.
+
+<a id="deepseek-aidsh-tool-automated-benchmarker"></a>
+
+## `@deepseek-ai/dsh-tool-automated-benchmarker`
+
+### `tool-automated-benchmarker`
+
+Performance tracking and reporting.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/extensions/tool-automated-benchmarker/src/index.ts`](../packages/extensions/tool-automated-benchmarker/src/index.ts)
+
+Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet.
+
+<a id="deepseek-aidsh-tool-config-autofix"></a>
+
+## `@deepseek-ai/dsh-tool-config-autofix`
+
+### `tool-config-autofix`
+
+Auto-fix configuration issues.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/bundle/tool-config-autofix/src/index.ts`](../packages/bundle/tool-config-autofix/src/index.ts)
+
+Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet.

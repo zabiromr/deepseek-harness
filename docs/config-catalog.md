@@ -212,12 +212,14 @@ export interface Config {
   readonly coldBlankProbeMaxEvents?: number
   /** Maximum stat-reported artifact byte size eligible for one full cold projection observation; `0` disables the byte-size gate. */
   readonly coldBlankProbeMaxBytes?: number
+  /** Exclusive byte ceiling on one `file.read`; a larger file is refused rather than loaded. */
+  readonly fileReadMaxBytes?: number
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
 }
 ```
 
-Source: [`packages/api/session-controller/src/index.ts:72`](../packages/api/session-controller/src/index.ts)
+Source: [`packages/api/session-controller/src/index.ts:80`](../packages/api/session-controller/src/index.ts)
 
 <a id="deepseek-aidsh-api-settings-controller"></a>
 
@@ -1487,6 +1489,85 @@ export interface ReconnectConfig {
 
 Source: [`packages/mcp/mcp-client/src/index.ts:98`](../packages/mcp/mcp-client/src/index.ts)
 
+<a id="deepseek-aidsh-memory-decay"></a>
+
+## `@deepseek-ai/dsh-memory-decay`
+
+Requires: `memory`
+
+```ts config-catalog
+/**
+ * Plugin config. The sweep interval is a deployment choice: it trades how
+ * promptly a faded lesson leaves the digest against how often a long-running
+ * host wakes to do arithmetic over the whole store.
+ */
+export interface Config {
+  /** Milliseconds between reclassification sweeps. */
+  sweepIntervalMs: number
+  /** Whether to sweep once at mount, before the first interval elapses. */
+  sweepOnStart: boolean
+}
+```
+
+Source: [`packages/memory/memory-decay/src/index.ts:22`](../packages/memory/memory-decay/src/index.ts)
+
+<a id="deepseek-aidsh-memory-domain"></a>
+
+## `@deepseek-ai/dsh-memory-domain`
+
+Requires: `storageDomain`
+
+```ts config-catalog
+/**
+ * Plugin config. Every field is a deployment choice with no universally
+ * correct value: how fast an unconfirmed lesson should fade, and where the two
+ * status floors sit, depend on how often the deployment runs sessions.
+ */
+export type Config = DecayParams
+```
+
+Depends on: [`DecayParams`](subsystems/memory.md)
+
+Source: [`packages/memory/memory-domain/src/index.ts:49`](../packages/memory/memory-domain/src/index.ts)
+
+<a id="deepseek-aidsh-memory-ephemeral"></a>
+
+## `@deepseek-ai/dsh-memory-ephemeral`
+
+```ts config-catalog
+/**
+ * Plugin config. The decay parameters mean the same thing here as in the
+ * durable provider; a deployment that swaps providers keeps its policy.
+ */
+export type Config = DecayParams
+```
+
+Depends on: [`DecayParams`](subsystems/memory.md)
+
+Source: [`packages/memory/memory-ephemeral/src/index.ts:48`](../packages/memory/memory-ephemeral/src/index.ts)
+
+<a id="deepseek-aidsh-memory-prompt"></a>
+
+## `@deepseek-ai/dsh-memory-prompt`
+
+Requires: `systemPrompt` · `memory`
+
+```ts config-catalog
+/**
+ * Plugin config. Both budget fields are deployment choices with no universally
+ * correct value: how many lessons are worth their tokens depends on the model's
+ * context budget and how much other first-party text a composition mounts.
+ */
+export interface Config {
+  /** Maximum lessons considered for the digest, highest standing first. */
+  maxLessons: number
+  /** Character budget for the rendered section, heading and preamble included. */
+  maxChars: number
+}
+```
+
+Source: [`packages/memory/memory-prompt/src/index.ts:33`](../packages/memory/memory-prompt/src/index.ts)
+
 <a id="deepseek-aidsh-message-feedback"></a>
 
 ## `@deepseek-ai/dsh-message-feedback`
@@ -1787,6 +1868,30 @@ export interface JsonRpcConfig {
 Depends on: `Readable` (`node:stream`) · `Writable` (`node:stream`)
 
 Source: [`packages/sdk/server/src/index.ts:25`](../packages/sdk/server/src/index.ts)
+
+<a id="deepseek-aidsh-self-improve-prompt"></a>
+
+## `@deepseek-ai/dsh-self-improve-prompt`
+
+Requires: `systemPrompt`
+
+```ts config-catalog
+/**
+ * Configuration for the self-improvement prompt section. Each flag gates one
+ * independently useful piece of guidance: a composition that mounts the
+ * capture tool without the recall tool wants the first and not the second.
+ */
+export interface Config {
+  /** Explain when a lesson is worth recording. */
+  showReflectionGuidance: boolean
+  /** Explain how to restate a lesson the digest already carries. */
+  showRestatementGuidance: boolean
+  /** Explain when to search beyond the always-on digest. */
+  showRecallGuidance: boolean
+}
+```
+
+Source: [`packages/feedback/self-improve-prompt/src/index.ts:20`](../packages/feedback/self-improve-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-session-log-deepseek"></a>
 
@@ -2612,6 +2717,38 @@ export type TokenMeterConfig = Record<string, never>
 
 Source: [`packages/llm/token-meter/src/types.ts:13`](../packages/llm/token-meter/src/types.ts)
 
+<a id="deepseek-aidsh-tool-adversarial-reviewer"></a>
+
+## `@deepseek-ai/dsh-tool-adversarial-reviewer`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Mount-time configuration. */
+export interface Config {
+  /** Whether the tool registration mounts; the tool itself has no behaviour to gate. */
+  enabled: boolean
+}
+```
+
+Source: [`packages/extensions/tool-adversarial-reviewer/src/index.ts:14`](../packages/extensions/tool-adversarial-reviewer/src/index.ts)
+
+<a id="deepseek-aidsh-tool-automated-benchmarker"></a>
+
+## `@deepseek-ai/dsh-tool-automated-benchmarker`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Mount-time configuration. */
+export interface Config {
+  /** Whether the tool registration mounts; the tool itself has no behaviour to gate. */
+  enabled: boolean
+}
+```
+
+Source: [`packages/extensions/tool-automated-benchmarker/src/index.ts:14`](../packages/extensions/tool-automated-benchmarker/src/index.ts)
+
 <a id="deepseek-aidsh-tool-bash"></a>
 
 ## `@deepseek-ai/dsh-tool-bash`
@@ -2649,6 +2786,22 @@ export interface Config {
 ```
 
 Source: [`packages/shell/tool-bash-persistent/src/index.ts:432`](../packages/shell/tool-bash-persistent/src/index.ts)
+
+<a id="deepseek-aidsh-tool-config-autofix"></a>
+
+## `@deepseek-ai/dsh-tool-config-autofix`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Mount-time configuration. */
+export interface Config {
+  /** Whether the tool registration mounts; the tool itself has no behaviour to gate. */
+  enabled: boolean
+}
+```
+
+Source: [`packages/bundle/tool-config-autofix/src/index.ts:14`](../packages/bundle/tool-config-autofix/src/index.ts)
 
 <a id="deepseek-aidsh-tool-fs"></a>
 
@@ -2757,6 +2910,28 @@ export type CompletionDelivery = 'quiet' | 'wakeup'
 
 Source: [`packages/jobs/tool-jobs/src/index.ts:31`](../packages/jobs/tool-jobs/src/index.ts)
 
+<a id="deepseek-aidsh-tool-knowledge-base"></a>
+
+## `@deepseek-ai/dsh-tool-knowledge-base`
+
+Requires: `tools` · `memory`
+
+```ts config-catalog
+/** Mount-time configuration. */
+export interface Config {
+  /** Maximum lessons one call may return, whatever the model asks for. */
+  maxResults: number
+  /**
+   * Whether a search may reach lessons recorded for other workspaces. Off
+   * keeps every result scoped to the calling session's workspace plus the
+   * global scope.
+   */
+  allowCrossWorkspace: boolean
+}
+```
+
+Source: [`packages/feedback/tool-knowledge-base/src/index.ts:21`](../packages/feedback/tool-knowledge-base/src/index.ts)
+
 <a id="deepseek-aidsh-tool-lsp"></a>
 
 ## `@deepseek-ai/dsh-tool-lsp`
@@ -2776,6 +2951,22 @@ export interface Config {
 ```
 
 Source: [`packages/lsp/tool-lsp/src/index.ts:57`](../packages/lsp/tool-lsp/src/index.ts)
+
+<a id="deepseek-aidsh-tool-plugin-evolver"></a>
+
+## `@deepseek-ai/dsh-tool-plugin-evolver`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Mount-time configuration. */
+export interface Config {
+  /** Whether the tool registration mounts; the tool itself has no behaviour to gate. */
+  enabled: boolean
+}
+```
+
+Source: [`packages/extensions/tool-plugin-evolver/src/index.ts:14`](../packages/extensions/tool-plugin-evolver/src/index.ts)
 
 <a id="deepseek-aidsh-tool-pwsh"></a>
 
@@ -2836,6 +3027,44 @@ export interface Config {
 ```
 
 Source: [`packages/workflow/tool-ralph/src/index.ts:21`](../packages/workflow/tool-ralph/src/index.ts)
+
+<a id="deepseek-aidsh-tool-schema-evolver"></a>
+
+## `@deepseek-ai/dsh-tool-schema-evolver`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Mount-time configuration. */
+export interface Config {
+  /** Whether the tool registration mounts; the tool itself has no behaviour to gate. */
+  enabled: boolean
+}
+```
+
+Source: [`packages/extensions/tool-schema-evolver/src/index.ts:14`](../packages/extensions/tool-schema-evolver/src/index.ts)
+
+<a id="deepseek-aidsh-tool-self-reflect"></a>
+
+## `@deepseek-ai/dsh-tool-self-reflect`
+
+Requires: `tools` · `memory`
+
+```ts config-catalog
+/** Mount-time configuration. */
+export interface Config {
+  /**
+   * Whether a lesson may be recorded against every workspace. A deployment
+   * that runs one agent across unrelated projects usually wants this off, so a
+   * lesson learned in one repository cannot surface in another.
+   */
+  allowGlobalScope: boolean
+  /** Maximum characters accepted for one lesson body. */
+  maxBodyChars: number
+}
+```
+
+Source: [`packages/feedback/tool-self-reflect/src/index.ts:22`](../packages/feedback/tool-self-reflect/src/index.ts)
 
 <a id="deepseek-aidsh-tool-session-query"></a>
 
@@ -3200,6 +3429,26 @@ export interface Config {
 
 Source: [`packages/web/web-fetch-http/src/index.ts:32`](../packages/web/web-fetch-http/src/index.ts)
 
+<a id="deepseek-aidsh-web-search-brave"></a>
+
+## `@deepseek-ai/dsh-web-search-brave`
+
+Requires: `web`
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills env-var and constant defaults). */
+export interface Config {
+  /** Brave API key. Falls back to `$BRAVE_API_KEY`. Empty → unavailable. */
+  apiKey?: string
+  /** API endpoint; defaults to the public Brave Search API. */
+  endpoint?: string
+  /** Default result count when a request carries no `maxResults`. Omitted = none. */
+  numResults?: number
+}
+```
+
+Source: [`packages/web/web-search-brave/src/index.ts:31`](../packages/web/web-search-brave/src/index.ts)
+
 <a id="deepseek-aidsh-web-search-deepseek"></a>
 
 ## `@deepseek-ai/dsh-web-search-deepseek`
@@ -3350,6 +3599,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-deliverables` — requires `systemPrompt` ([`packages/client/ui-deliverables/src/index.ts`](../packages/client/ui-deliverables/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-directory-picker-browse` ([`packages/client/ui-directory-picker-browse/src/index.ts`](../packages/client/ui-directory-picker-browse/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-directory-picker-native` ([`packages/client/ui-directory-picker-native/src/index.ts`](../packages/client/ui-directory-picker-native/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-file-browser` ([`packages/client/ui-file-browser/src/index.ts`](../packages/client/ui-file-browser/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-goal` ([`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-input-trigger` ([`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-jobs` ([`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts))
@@ -3422,6 +3672,7 @@ Abstract service classes — a deployment loads a concrete implementation packag
 - `@deepseek-ai/dsh-fs` — abstract `FileSystem` ([`packages/fs/fs/src/index.ts`](../packages/fs/fs/src/index.ts))
 - `@deepseek-ai/dsh-host-directory-picker` — abstract `DirectoryPicker` ([`packages/host/directory-picker/src/index.ts`](../packages/host/directory-picker/src/index.ts))
 - `@deepseek-ai/dsh-jobs` — abstract `JobRegistry` ([`packages/jobs/jobs/src/index.ts`](../packages/jobs/jobs/src/index.ts))
+- `@deepseek-ai/dsh-memory` — abstract `MemoryService` ([`packages/memory/memory/src/index.ts`](../packages/memory/memory/src/index.ts))
 - `@deepseek-ai/dsh-sandbox` — abstract `SandboxProvider` ([`packages/sandbox/sandbox/src/index.ts`](../packages/sandbox/sandbox/src/index.ts))
 - `@deepseek-ai/dsh-session-persistence` — abstract `SessionPersistence` ([`packages/session/session-persistence/src/index.ts`](../packages/session/session-persistence/src/index.ts))
 - `@deepseek-ai/dsh-session-query` — abstract `SessionQueryEngine` ([`packages/session-query/session-query/src/index.ts`](../packages/session-query/session-query/src/index.ts))

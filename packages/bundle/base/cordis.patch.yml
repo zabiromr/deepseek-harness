@@ -455,6 +455,11 @@
       config:
         apiKeyEnv: DEEPSEEK_API_KEY
 
+    # No config: the plugin resolves $BRAVE_API_KEY through the launch
+    # environment snapshot, which is the ladder a shipped row must not bypass.
+    - id: web-search-brave
+      name: '@deepseek-ai/dsh-web-search-brave'
+
     - id: web-fetch-http
       name: '@deepseek-ai/dsh-web-fetch-http'
 
@@ -496,3 +501,92 @@
     # choice.
     - id: llm-deepseek
       name: '@deepseek-ai/dsh-llm-deepseek'
+
+    # ── learned-memory rows ─────────────────────────────────────────────────────
+    # The Stage 1 self-evolution loop: durable evidence-bound lessons, the sweep
+    # that fades the ones nothing re-confirms, the always-on digest that carries
+    # them into a later session, and the two tools that write and search them.
+
+    # The memory provider. Its domain routes to the default `json` backend
+    # declared on storage-domain above. The decay parameters are the ONE home of
+    # the fading policy: a lesson's standing halves every 30 days without new
+    # evidence, drops out of the digest below 0.25 (about 60 days uncited), and
+    # retires below 0.05 (about 130 days). A contradicted lesson scores negative
+    # immediately and retires on the next sweep.
+    - id: memory-domain
+      name: '@deepseek-ai/dsh-memory-domain'
+      config:
+        halfLifeMs: 2592000000
+        dormantFloor: 0.25
+        retireFloor: 0.05
+
+    # Reclassification schedule. Only WHEN the arithmetic runs lives here.
+    - id: memory-decay
+      name: '@deepseek-ai/dsh-memory-decay'
+      config:
+        sweepIntervalMs: 21600000
+        sweepOnStart: true
+
+    # The always-on digest. The budget is what keeps accumulated memory from
+    # crowding out the rest of the prompt.
+    - id: memory-prompt
+      name: '@deepseek-ai/dsh-memory-prompt'
+      config:
+        maxLessons: 8
+        maxChars: 2000
+
+    - id: tool-self-reflect
+      name: '@deepseek-ai/dsh-tool-self-reflect'
+      config:
+        allowGlobalScope: true
+        maxBodyChars: 1000
+
+    - id: tool-knowledge-base
+      name: '@deepseek-ai/dsh-tool-knowledge-base'
+      config:
+        maxResults: 20
+        allowCrossWorkspace: false
+
+    - id: self-improve-prompt
+      name: '@deepseek-ai/dsh-self-improve-prompt'
+      config:
+        showReflectionGuidance: true
+        showRestatementGuidance: true
+        showRecallGuidance: true
+
+    # ── reserved self-evolution rows ────────────────────────────────────────────
+    # Name reservations for the config- and plugin-evolution stages. Each still
+    # resolves `{ status: 'ok' }` for every call, so they are disabled here: a
+    # tool that always reports success is indistinguishable from a working one,
+    # and offering it to the model wastes turns on a capability that does not
+    # exist. Enable a row only once its behaviour lands.
+
+    - id: tool-config-autofix
+      name: '@deepseek-ai/dsh-tool-config-autofix'
+      disabled: true
+      config:
+        enabled: true
+
+    - id: tool-schema-evolver
+      name: '@deepseek-ai/dsh-tool-schema-evolver'
+      disabled: true
+      config:
+        enabled: true
+
+    - id: tool-plugin-evolver
+      name: '@deepseek-ai/dsh-tool-plugin-evolver'
+      disabled: true
+      config:
+        enabled: true
+
+    - id: tool-adversarial-reviewer
+      name: '@deepseek-ai/dsh-tool-adversarial-reviewer'
+      disabled: true
+      config:
+        enabled: true
+
+    - id: tool-automated-benchmarker
+      name: '@deepseek-ai/dsh-tool-automated-benchmarker'
+      disabled: true
+      config:
+        enabled: true

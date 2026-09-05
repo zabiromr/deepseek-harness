@@ -67,6 +67,14 @@ import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
 import VmWorkflowEngine from '@deepseek-ai/dsh-workflow-worker-thread'
 import * as ToolRalph from '@deepseek-ai/dsh-tool-ralph'
 import * as ToolWorkflow from '@deepseek-ai/dsh-tool-workflow'
+import EphemeralMemory from '@deepseek-ai/dsh-memory-ephemeral'
+import * as ToolSelfReflect from '@deepseek-ai/dsh-tool-self-reflect'
+import * as ToolKnowledgeBase from '@deepseek-ai/dsh-tool-knowledge-base'
+import * as ToolPluginEvolver from '@deepseek-ai/dsh-tool-plugin-evolver'
+import * as ToolSchemaEvolver from '@deepseek-ai/dsh-tool-schema-evolver'
+import * as ToolAdversarialReviewer from '@deepseek-ai/dsh-tool-adversarial-reviewer'
+import * as ToolAutomatedBenchmarker from '@deepseek-ai/dsh-tool-automated-benchmarker'
+import * as ToolConfigAutofix from '@deepseek-ai/dsh-tool-config-autofix'
 import { githubSlug } from './verify-md-links.ts'
 
 /** Attachment seam marker that makes the attachments-conditional `read_image` schema harvestable. */
@@ -589,6 +597,92 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'web_search and web_fetch keep provider selection behind ctx.web so model-visible schemas stay stable across backend swaps.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-self-reflect',
+    dir: 'tool-self-reflect',
+    source: 'packages/feedback/tool-self-reflect/src/index.ts',
+    requires: ['ctx.tools', 'ctx.memory'],
+    writes: ['tool/call', 'durable lesson record', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(EphemeralMemory, { halfLifeMs: 2592000000, dormantFloor: 0.25, retireFloor: 0.05 })
+      await ctx.plugin(ToolSelfReflect, { allowGlobalScope: true, maxBodyChars: 1000 })
+    },
+    note:
+      'The write side of the learned-memory seam. Every call MUST cite session events; an uncited call is rejected before any write, because a lesson that cannot be replayed against the session log must never re-enter a prompt. `confirm` resets the decay clock of a lesson and `contradict` does not, so arguing against a stale lesson cannot freshen it. The catalog mounts the in-process memory provider; a deployment normally mounts the durable one.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-knowledge-base',
+    dir: 'tool-knowledge-base',
+    source: 'packages/feedback/tool-knowledge-base/src/index.ts',
+    requires: ['ctx.tools', 'ctx.memory'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(EphemeralMemory, { halfLifeMs: 2592000000, dormantFloor: 0.25, retireFloor: 0.05 })
+      await ctx.plugin(ToolKnowledgeBase, { maxResults: 20, allowCrossWorkspace: false })
+    },
+    note:
+      'The read side of the learned-memory seam, for what the always-on prompt digest cannot serve: topic search, the evidence behind a lesson, and lessons that have decayed out of the digest but remain on the record. The catalog shows `allowCrossWorkspace: false`, which pins every result to the workspace of the calling session plus globally-scoped lessons.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-plugin-evolver',
+    dir: 'tool-plugin-evolver',
+    source: 'packages/extensions/tool-plugin-evolver/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(ToolPluginEvolver, { enabled: true })
+    },
+    note:
+      'Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-schema-evolver',
+    dir: 'tool-schema-evolver',
+    source: 'packages/extensions/tool-schema-evolver/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(ToolSchemaEvolver, { enabled: true })
+    },
+    note:
+      'Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-adversarial-reviewer',
+    dir: 'tool-adversarial-reviewer',
+    source: 'packages/extensions/tool-adversarial-reviewer/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(ToolAdversarialReviewer, { enabled: true })
+    },
+    note:
+      'Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-automated-benchmarker',
+    dir: 'tool-automated-benchmarker',
+    source: 'packages/extensions/tool-automated-benchmarker/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(ToolAutomatedBenchmarker, { enabled: true })
+    },
+    note:
+      'Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-config-autofix',
+    dir: 'tool-config-autofix',
+    source: 'packages/bundle/tool-config-autofix/src/index.ts',
+    requires: ['ctx.tools'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(ToolConfigAutofix, { enabled: true })
+    },
+    note:
+      'Placeholder registration in the self-improvement family: the tool takes one free-form `action` string, ignores it, and always resolves `{ status: "ok" }`. It exists to reserve the name and wire shape; no behaviour sits behind it yet.',
   },
 ]
 

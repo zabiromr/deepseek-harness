@@ -235,6 +235,11 @@ export class FakeApiClient {
         page: request => this.page(request),
         follow: (request, signal) => this.openFollow(request, signal),
         control: signal => this.openControl(signal),
+        ['file.list']: async (payload: { path: string }) => ok({ path: payload.path, entries: [] }),
+        ['file.read']: async (_payload: { path: string }) =>
+          ok({ content: '', version: 'v1' as never }),
+        ['file.write']: async (_payload: { path: string; content: string }) =>
+          ok({ operation: 'create' as const, version: 'v1' as never }),
       },
       subagents: {
         list: parentSessionId => this.record(

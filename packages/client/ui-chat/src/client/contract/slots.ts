@@ -104,8 +104,22 @@ export type ChatNodeViewProps<Kind extends ChatNodeKind = ChatNodeKind> =
 
 /** Tool block rendered in the details panel. */
 export interface DetailsToolOwnerProps {
+  /**
+   * Open one path in the details file browser, when a browser is mounted. A
+   * Tool view offers this for a path its call read; the panel resolves the
+   * path against the workspace and switches its own body.
+   */
+  browseFile?: ((path: string) => void) | undefined
   block: ToolCallBlock
   cwd?: string | undefined
+}
+
+/** Owner share of the details-panel file browser. */
+export interface DetailsBrowserOwnerProps {
+  /** Workspace root the browser starts in; absent until the Session reports one. */
+  root?: string | undefined
+  /** A file to open directly instead of listing the root. */
+  openPath?: string | undefined
 }
 
 /** Command-row owner share. */
@@ -172,7 +186,7 @@ export interface DetailsInjected {
 /** Full details-panel props. */
 export type DetailsSlotProps =
   PropsRuntime<'details'>
-  & PropsRenderSlots<'conversation.details.tool'>
+  & PropsRenderSlots<'conversation.details.tool' | 'conversation.details.browser'>
   & PropsStore<ChatStore>
   & InjectFace<DetailsInjected>
   & PropsLocale<'chat'>
@@ -232,5 +246,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * replaces the shipped Tool details renderer; absence uses the raw fallback.
      */
     'conversation.details.tool': { kind: 'single'; scope: 'session'; owner: DetailsToolOwnerProps }
+    /**
+     * Whole details-panel body for browsing and editing workspace files. The
+     * component receives the workspace root to start from. The panel renders
+     * this slot whenever no Tool call is selected; without a registration it
+     * shows its own empty state instead.
+     */
+    'conversation.details.browser': { kind: 'single'; scope: 'session'; owner: DetailsBrowserOwnerProps }
   }
 }

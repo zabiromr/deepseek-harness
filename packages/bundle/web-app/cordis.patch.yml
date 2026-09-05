@@ -273,6 +273,11 @@
     - id: ui-goal
       name: '@deepseek-ai/dsh-client-ui-goal'
 
+    # File browser: sidebar footer action plus the details-panel overlay that
+    # fills the `conversation.details.browser` slot ui-chat declares.
+    - id: ui-file-browser
+      name: '@deepseek-ai/dsh-client-ui-file-browser'
+
     # Per-message feedback: Like/Dislike plus an optional note in the
     # assistant-message action strip, over the messageFeedback Remote.
     - id: ui-message-feedback
@@ -442,3 +447,25 @@
       name: '@deepseek-ai/dsh-agent-presets'
       config:
         default: standard
+
+
+# ── learned-memory plugins ───────────────────────────────────────────────────
+# The Stage 1 loop stays ENABLED in web mode: long-lived interactive sessions in
+# one workspace are exactly where accumulated lessons pay for their tokens.
+- id: memory-domain
+  disabled: false
+
+- id: memory-decay
+  disabled: false
+
+- id: memory-prompt
+  disabled: false
+
+- id: tool-self-reflect
+  disabled: false
+
+- id: tool-knowledge-base
+  disabled: false
+
+- id: self-improve-prompt
+  disabled: false

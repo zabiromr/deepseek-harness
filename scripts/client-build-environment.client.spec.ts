@@ -198,7 +198,8 @@ describe('client build environment', () => {
     expect(repositoryGitDirty(fixtureRoot)).toBe(false)
     write(join(fixtureRoot, 'submodule/tracked.txt'), 'modified submodule\n')
     expect(repositoryGitDirty(fixtureRoot)).toBe(true)
-  })
+    // Builds a real git repository fixture; well past the 5s default.
+  }, 120_000)
 
   it('omits dirty metadata when repository metadata is unavailable', () => {
     const fixtureRoot = mkdtempSync(join(tmpdir(), 'dsh-client-build-no-git-'))

@@ -28,7 +28,9 @@ describe('THIRD_PARTY_NOTICES.md', () => {
     const generated = render()
     expect(generated).toContain('It depends on the third-party software listed below.')
     expect(readFileSync(resolve(root, 'THIRD_PARTY_NOTICES.md'), 'utf8'), 'stale notices — run `pnpm run gen-third-party-notices`').toBe(generated)
-  })
+    // Rendering every workspace manifest is far past the 5s default; heavy
+    // suites elsewhere get 120s from their own vitest config.
+  }, 120_000)
 })
 
 /** Build the (manifests, names) pair `tierExternalDeps` consumes. */

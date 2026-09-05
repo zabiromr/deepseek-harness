@@ -164,6 +164,8 @@ flowchart LR
   cfg --> plugin_dsh_base_web
   plugin_dsh_base_web_search_deepseek["web-search-deepseek<br/>@deepseek-ai/dsh-web-search-deepseek"]
   cfg --> plugin_dsh_base_web_search_deepseek
+  plugin_dsh_base_web_search_brave["web-search-brave<br/>@deepseek-ai/dsh-web-search-brave"]
+  cfg --> plugin_dsh_base_web_search_brave
   plugin_dsh_base_web_fetch_http["web-fetch-http<br/>@deepseek-ai/dsh-web-fetch-http"]
   cfg --> plugin_dsh_base_web_fetch_http
   plugin_dsh_base_tool_web["tool-web<br/>@deepseek-ai/dsh-tool-web"]
@@ -178,6 +180,28 @@ flowchart LR
   cfg --> plugin_dsh_base_fs_sandbox
   plugin_dsh_base_llm_deepseek["llm-deepseek<br/>@deepseek-ai/dsh-llm-deepseek"]
   cfg --> plugin_dsh_base_llm_deepseek
+  plugin_dsh_base_memory_domain["memory-domain<br/>@deepseek-ai/dsh-memory-domain"]
+  cfg --> plugin_dsh_base_memory_domain
+  plugin_dsh_base_memory_decay["memory-decay<br/>@deepseek-ai/dsh-memory-decay"]
+  cfg --> plugin_dsh_base_memory_decay
+  plugin_dsh_base_memory_prompt["memory-prompt<br/>@deepseek-ai/dsh-memory-prompt"]
+  cfg --> plugin_dsh_base_memory_prompt
+  plugin_dsh_base_tool_self_reflect["tool-self-reflect<br/>@deepseek-ai/dsh-tool-self-reflect"]
+  cfg --> plugin_dsh_base_tool_self_reflect
+  plugin_dsh_base_tool_knowledge_base["tool-knowledge-base<br/>@deepseek-ai/dsh-tool-knowledge-base"]
+  cfg --> plugin_dsh_base_tool_knowledge_base
+  plugin_dsh_base_self_improve_prompt["self-improve-prompt<br/>@deepseek-ai/dsh-self-improve-prompt"]
+  cfg --> plugin_dsh_base_self_improve_prompt
+  plugin_dsh_base_tool_config_autofix["tool-config-autofix<br/>@deepseek-ai/dsh-tool-config-autofix"]
+  cfg --> plugin_dsh_base_tool_config_autofix
+  plugin_dsh_base_tool_schema_evolver["tool-schema-evolver<br/>@deepseek-ai/dsh-tool-schema-evolver"]
+  cfg --> plugin_dsh_base_tool_schema_evolver
+  plugin_dsh_base_tool_plugin_evolver["tool-plugin-evolver<br/>@deepseek-ai/dsh-tool-plugin-evolver"]
+  cfg --> plugin_dsh_base_tool_plugin_evolver
+  plugin_dsh_base_tool_adversarial_reviewer["tool-adversarial-reviewer<br/>@deepseek-ai/dsh-tool-adversarial-reviewer"]
+  cfg --> plugin_dsh_base_tool_adversarial_reviewer
+  plugin_dsh_base_tool_automated_benchmarker["tool-automated-benchmarker<br/>@deepseek-ai/dsh-tool-automated-benchmarker"]
+  cfg --> plugin_dsh_base_tool_automated_benchmarker
 ```
 
 | Plugin id | Package / module |
@@ -260,6 +284,7 @@ flowchart LR
 | `repeat-tool-reminder` | `@deepseek-ai/dsh-repeat-tool-reminder` |
 | `web` | `@deepseek-ai/dsh-web` |
 | `web-search-deepseek` | `@deepseek-ai/dsh-web-search-deepseek` |
+| `web-search-brave` | `@deepseek-ai/dsh-web-search-brave` |
 | `web-fetch-http` | `@deepseek-ai/dsh-web-fetch-http` |
 | `tool-web` | `@deepseek-ai/dsh-tool-web` |
 | `tools` | `@deepseek-ai/dsh-tools` |
@@ -267,6 +292,17 @@ flowchart LR
 | `agent-loop` | `@deepseek-ai/dsh-agent-loop` |
 | `fs-sandbox` | `@deepseek-ai/dsh-fs-sandbox` |
 | `llm-deepseek` | `@deepseek-ai/dsh-llm-deepseek` |
+| `memory-domain` | `@deepseek-ai/dsh-memory-domain` |
+| `memory-decay` | `@deepseek-ai/dsh-memory-decay` |
+| `memory-prompt` | `@deepseek-ai/dsh-memory-prompt` |
+| `tool-self-reflect` | `@deepseek-ai/dsh-tool-self-reflect` |
+| `tool-knowledge-base` | `@deepseek-ai/dsh-tool-knowledge-base` |
+| `self-improve-prompt` | `@deepseek-ai/dsh-self-improve-prompt` |
+| `tool-config-autofix` | `@deepseek-ai/dsh-tool-config-autofix` |
+| `tool-schema-evolver` | `@deepseek-ai/dsh-tool-schema-evolver` |
+| `tool-plugin-evolver` | `@deepseek-ai/dsh-tool-plugin-evolver` |
+| `tool-adversarial-reviewer` | `@deepseek-ai/dsh-tool-adversarial-reviewer` |
+| `tool-automated-benchmarker` | `@deepseek-ai/dsh-tool-automated-benchmarker` |
 
 Source config: [`packages/bundle/base/cordis.patch.yml`](../../packages/bundle/base/cordis.patch.yml).
 

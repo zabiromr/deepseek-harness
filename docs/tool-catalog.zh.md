@@ -44,6 +44,13 @@
 | `@deepseek-ai/dsh-tool-todo` | `todo_write` | `ctx.tools`、`owning Agent session` | `tool/call`、`todo/write`、`tool/result` | - | todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为检查清单。`allowParallelInProgress` 是没有默认值的必填项，因此本目录明确选择 `true`，对应描述允许同时存在多个 `in_progress` 项。选择 `false` 的部署会获得同一工具，但描述会要求只能有 1 个活动任务。 |
 | `@deepseek-ai/dsh-tool-workflow` | `workflow` | `ctx.tools`、`ctx.workflowEngine`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents the script children)` | `tool/call`、`tool/result` | - | - |
 | `@deepseek-ai/dsh-tool-web` | `web_fetch`、`web_search` | `ctx.tools`、`ctx.web`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。 |
+| `@deepseek-ai/dsh-tool-self-reflect` | `tool-self-reflect` | `ctx.tools`、`ctx.memory` | `tool/call`、`durable lesson record`、`tool/result` | - | 习得记忆能力缝的写入侧。每次调用都**必须**引用会话事件；没有引用的调用会在任何写入之前被拒绝，因为无法回放到会话日志的教训绝不应重新进入提示词。`confirm` 会重置教训的衰减时钟而 `contradict` 不会，因此反驳一条陈旧教训不会让它变新。本目录挂载的是进程内记忆提供方；部署通常挂载持久化提供方。 |
+| `@deepseek-ai/dsh-tool-knowledge-base` | `tool-knowledge-base` | `ctx.tools`、`ctx.memory` | `tool/call`、`tool/result` | - | 习得记忆能力缝的读取侧，面向常驻提示词摘要无法服务的场景：主题搜索、某条教训背后的证据，以及已从摘要中衰减出去但仍在记录中的教训。本目录展示的是 `allowCrossWorkspace: false`，它把每条结果都钉在调用会话所在的工作区，外加全局作用域的教训。 |
+| `@deepseek-ai/dsh-tool-plugin-evolver` | `tool-plugin-evolver` | `ctx.tools` | `tool/call`、`tool/result` | - | 自我改进家族中的占位注册：该工具接受一个自由格式的 `action` 字符串、忽略它，并总是返回 `{ status: "ok" }`。它的存在只为保留名称与传输形状；其背后尚无任何行为。 |
+| `@deepseek-ai/dsh-tool-schema-evolver` | `tool-schema-evolver` | `ctx.tools` | `tool/call`、`tool/result` | - | 自我改进家族中的占位注册：该工具接受一个自由格式的 `action` 字符串、忽略它，并总是返回 `{ status: "ok" }`。它的存在只为保留名称与传输形状；其背后尚无任何行为。 |
+| `@deepseek-ai/dsh-tool-adversarial-reviewer` | `tool-adversarial-reviewer` | `ctx.tools` | `tool/call`、`tool/result` | - | 自我改进家族中的占位注册：该工具接受一个自由格式的 `action` 字符串、忽略它，并总是返回 `{ status: "ok" }`。它的存在只为保留名称与传输形状；其背后尚无任何行为。 |
+| `@deepseek-ai/dsh-tool-automated-benchmarker` | `tool-automated-benchmarker` | `ctx.tools` | `tool/call`、`tool/result` | - | 自我改进家族中的占位注册：该工具接受一个自由格式的 `action` 字符串、忽略它，并总是返回 `{ status: "ok" }`。它的存在只为保留名称与传输形状；其背后尚无任何行为。 |
+| `@deepseek-ai/dsh-tool-config-autofix` | `tool-config-autofix` | `ctx.tools` | `tool/call`、`tool/result` | - | 自我改进家族中的占位注册：该工具接受一个自由格式的 `action` 字符串、忽略它，并总是返回 `{ status: "ok" }`。它的存在只为保留名称与传输形状；其背后尚无任何行为。 |
 
 <a id="deepseek-aidsh-tool-ask-user"></a>
 
@@ -2231,3 +2238,265 @@ todo_write 是会话所有的状态；UI 将最新的 todo/write 事件渲染为
 来源：[`packages/web/tool-web/src/index.ts`](../packages/web/tool-web/src/index.ts)
 
 web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可见 schema 在更换后端时保持稳定。
+
+<a id="deepseek-aidsh-tool-self-reflect"></a>
+
+## `@deepseek-ai/dsh-tool-self-reflect`
+
+### `tool-self-reflect`
+
+记录本次会话中学到的教训，使后续会话得以继承；或针对新证据复述一条既有教训。每次调用都**必须**引用支持它的会话事件：传入相关事件的 `seq` 序号（来自会话历史或会话查询工具）。没有引用的教训会被拒绝。当你学到了未来会话应当知道的内容时使用 `record`——一个你纠正过的错误假设、一项项目特有的约定、一个行为异常的工具。当提示词中已有的教训再次被证实时使用 `confirm`；当它误导了你时使用 `contradict`——被反驳的教训会迅速失去地位，因此应及时反驳，而不是默默绕开一条陈旧教训。教训的写法应当在脱离本次会话上下文时依然可据以行动：写明适用情形以及该怎么做。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Capture a new lesson, or restate an existing one against new evidence.",
+      "enum": [
+        "record",
+        "confirm",
+        "contradict"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "description": "One line stating what to do differently. Required for `record`."
+    },
+    "body": {
+      "type": "string",
+      "description": "The lesson: the circumstance it applies to and the action to take. Required for `record`."
+    },
+    "lesson_id": {
+      "type": "string",
+      "description": "The lesson being restated. Required for `confirm` and `contradict`."
+    },
+    "scope": {
+      "type": "string",
+      "description": "Workspace the lesson applies to. Defaults to this session's working directory; `*` means every workspace."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Optional retrieval tags.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Citations justifying this call; never empty.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "session": {
+            "type": "string",
+            "description": "Session holding the cited events. Defaults to the current session."
+          },
+          "seq": {
+            "type": "array",
+            "description": "Sequence numbers of the cited events, ascending.",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "seq"
+        ]
+      }
+    }
+  },
+  "required": [
+    "action",
+    "evidence"
+  ]
+}
+```
+
+Source: [`packages/feedback/tool-self-reflect/src/index.ts`](../packages/feedback/tool-self-reflect/src/index.ts)
+
+习得记忆能力缝的写入侧。每次调用都**必须**引用会话事件；没有引用的调用会在任何写入之前被拒绝，因为无法回放到会话日志的教训绝不应重新进入提示词。`confirm` 会重置教训的衰减时钟而 `contradict` 不会，因此反驳一条陈旧教训不会让它变新。本目录挂载的是进程内记忆提供方；部署通常挂载持久化提供方。
+
+<a id="deepseek-aidsh-tool-knowledge-base"></a>
+
+## `@deepseek-ai/dsh-tool-knowledge-base`
+
+### `tool-knowledge-base`
+
+搜索更早会话记录下来的教训。你的提示词已经承载了本工作区中地位最高的活跃教训，因此当你需要摘要未展示的内容时才使用本工具：关于特定主题的教训、你打算据以行动的某条教训背后的证据，或已经淡出（`dormant` 或 `retired`）但可能仍然适用的教训。结果携带支持每条教训的引用，因此你可以在信任它之前读取原始会话事件。要改变一条教训的地位，请使用反思工具而非本工具。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string",
+      "description": "Case-insensitive substring matched against title, body, and tags. Omit to list by standing alone."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Only lessons carrying every listed tag.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "statuses": {
+      "type": "array",
+      "description": "Standings to include. Omit to search every standing, including faded lessons.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "active",
+          "dormant",
+          "retired"
+        ]
+      }
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum lessons to return; capped by the deployment."
+    }
+  }
+}
+```
+
+Source: [`packages/feedback/tool-knowledge-base/src/index.ts`](../packages/feedback/tool-knowledge-base/src/index.ts)
+
+习得记忆能力缝的读取侧，面向常驻提示词摘要无法服务的场景：主题搜索、某条教训背后的证据，以及已从摘要中衰减出去但仍在记录中的教训。本目录展示的是 `allowCrossWorkspace: false`，它把每条结果都钉在调用会话所在的工作区，外加全局作用域的教训。
+
+<a id="deepseek-aidsh-tool-plugin-evolver"></a>
+
+## `@deepseek-ai/dsh-tool-plugin-evolver`
+
+### `tool-plugin-evolver`
+
+根据性能指标演进插件配置。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/extensions/tool-plugin-evolver/src/index.ts`](../packages/extensions/tool-plugin-evolver/src/index.ts)
+
+自我改进家族中的占位注册：该工具接受一个自由格式的 `action` 字符串、忽略它，并总是返回 `{ status: "ok" }`。它的存在只为保留名称与传输形状；其背后尚无任何行为。
+
+<a id="deepseek-aidsh-tool-schema-evolver"></a>
+
+## `@deepseek-ai/dsh-tool-schema-evolver`
+
+### `tool-schema-evolver`
+
+根据使用数据自动调优工具 schema。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/extensions/tool-schema-evolver/src/index.ts`](../packages/extensions/tool-schema-evolver/src/index.ts)
+
+自我改进家族中的占位注册：该工具接受一个自由格式的 `action` 字符串、忽略它，并总是返回 `{ status: "ok" }`。它的存在只为保留名称与传输形状；其背后尚无任何行为。
+
+<a id="deepseek-aidsh-tool-adversarial-reviewer"></a>
+
+## `@deepseek-ai/dsh-tool-adversarial-reviewer`
+
+### `tool-adversarial-reviewer`
+
+通过 subagent（子智能体）评审进行自我批评。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/extensions/tool-adversarial-reviewer/src/index.ts`](../packages/extensions/tool-adversarial-reviewer/src/index.ts)
+
+自我改进家族中的占位注册：该工具接受一个自由格式的 `action` 字符串、忽略它，并总是返回 `{ status: "ok" }`。它的存在只为保留名称与传输形状；其背后尚无任何行为。
+
+<a id="deepseek-aidsh-tool-automated-benchmarker"></a>
+
+## `@deepseek-ai/dsh-tool-automated-benchmarker`
+
+### `tool-automated-benchmarker`
+
+性能跟踪与报告。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/extensions/tool-automated-benchmarker/src/index.ts`](../packages/extensions/tool-automated-benchmarker/src/index.ts)
+
+自我改进家族中的占位注册：该工具接受一个自由格式的 `action` 字符串、忽略它，并总是返回 `{ status: "ok" }`。它的存在只为保留名称与传输形状；其背后尚无任何行为。
+
+<a id="deepseek-aidsh-tool-config-autofix"></a>
+
+## `@deepseek-ai/dsh-tool-config-autofix`
+
+### `tool-config-autofix`
+
+自动修复配置问题。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/bundle/tool-config-autofix/src/index.ts`](../packages/bundle/tool-config-autofix/src/index.ts)
+
+自我改进家族中的占位注册：该工具接受一个自由格式的 `action` 字符串、忽略它，并总是返回 `{ status: "ok" }`。它的存在只为保留名称与传输形状；其背后尚无任何行为。

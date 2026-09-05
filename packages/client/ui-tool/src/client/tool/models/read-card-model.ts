@@ -21,7 +21,14 @@ export const CHAT_READ_MAX_LINES = 8
  * props so the two stay in step; `maxLines`/`className` belong to each render
  * site.
  */
-export type ReadCardModel = Pick<ReadBlockProps, 'label' | 'lines' | 'totalLines' | 'lang'>
+export type ReadCardModel = Pick<ReadBlockProps, 'label' | 'lines' | 'totalLines' | 'lang'> & {
+  /**
+   * The path as the call authored it, unrelativized. `label` is display text;
+   * this is what a follow-up read or browse resolves, so the two differ
+   * whenever the label was relativized or home-abbreviated.
+   */
+  readonly path: string
+}
 
 interface ReadMeta {
   path: string
@@ -90,6 +97,7 @@ export function readCardModel(
   if (body === undefined) return null
   return {
     label: abbreviateHomePath(relativizeToCwd(meta.path, sessionCwd), home),
+    path: meta.path,
     lines: meta.lines,
     totalLines: meta.totalLines,
     lang: meta.lang,

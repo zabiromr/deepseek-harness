@@ -1,0 +1,150 @@
+.browser {
+  margin: 16px 0;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-markdown-code-block);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  background: var(--dsw-alias-markdown-code-block-banner);
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.status {
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xs-13);
+}
+
+.loadingState {
+  padding: 8px 16px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+}
+
+.emptyState {
+  padding: 16px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--dsw-alias-status-error);
+  color: var(--dsw-alias-status-error-foreground);
+  font-size: 12px;
+}
+
+.entryList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entryItem {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 100ms;
+}
+
+.entryItem:hover {
+  background: var(--dsw-alias-markdown-code-block-banner);
+}
+
+.entryName {
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--ds-font-family-code);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.backButton,
+.copyButton,
+.editButton,
+.saveButton,
+.cancelButton {
+  background-color: transparent;
+  border: none;
+  padding: 4px 8px;
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font: var(--dsw-font-xs-13);
+  border-radius: 4px;
+}
+
+.backButton:hover,
+.copyButton:hover,
+.editButton:hover,
+.saveButton:hover,
+.cancelButton:hover {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-markdown-code-block-banner);
+}
+
+.saveButton {
+  color: var(--dsw-alias-label-primary);
+}
+
+.copyButton,
+.editButton {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.fileEditor {
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.reloadButton {
+  flex: none;
+  padding: 2px 10px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  corner-shape: round;
+  background: transparent;
+  color: inherit;
+  font: var(--dsw-font-xs-13);
+  cursor: pointer;
+}

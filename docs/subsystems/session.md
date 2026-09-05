@@ -800,6 +800,33 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionInspectio
  * @returns one complete baseline followed by live replacement frames.
  */
 @Remote({ mode: 'stream' }) control(signal: AbortSignal): AsyncIterable<SessionControlFrame>
+
+/**
+ * Read the full content of an arbitrary file within the Session workspace.
+ * @param request - absolute file path within the workspace.
+ * @param signal - cancellation signal for the resolve, stat, and read steps.
+ * @returns decoded UTF-8 file content.
+ * @throws RemoteError when the file is absent, binary, or too large.
+ */
+@Remote('file.read') async fileRead(request: SessionFileReadRequest, signal: AbortSignal): Promise<SessionFileReadValue>
+
+/**
+ * List the direct children of one directory within the Session workspace.
+ * @param request - directory path resolved by the Host filesystem.
+ * @param signal - cancellation signal for the resolve, stat, and list steps.
+ * @returns the resolved directory path and its direct children in stable name order.
+ * @throws RemoteError when the directory is absent or the path is not a directory.
+ */
+@Remote('file.list') async fileList(request: SessionFileListRequest, signal: AbortSignal): Promise<SessionFileListValue>
+
+/**
+ * Write full content to an arbitrary file within the Session workspace.
+ * @param request - absolute file path and full content to write.
+ * @param signal - cancellation signal for the resolve and write steps.
+ * @returns confirmation of the write operation.
+ * @throws RemoteError when the path is invalid or the write fails.
+ */
+@Remote('file.write') async fileWrite(request: SessionFileWriteRequest, signal: AbortSignal): Promise<SessionFileWriteValue>
 ```
 
 Types: [SessionId](core.md) · [SessionInspection](persistence.md) · [SessionSearchRequest](session-query.md)
