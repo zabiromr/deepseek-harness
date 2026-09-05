@@ -452,6 +452,11 @@
 # ── learned-memory plugins ───────────────────────────────────────────────────
 # The Stage 1 loop stays ENABLED in web mode: long-lived interactive sessions in
 # one workspace are exactly where accumulated lessons pay for their tokens.
+# The learned-memory group, enabled for the interactive surface. dsh-base
+# leaves the whole group disabled because every row changes what the model
+# sees; a session that spans days is the deployment that wants it. The rows
+# enable together: the tools write through the provider, and the digest is
+# what carries a written lesson into a later session.
 - id: memory-domain
   disabled: false
 

@@ -82,4 +82,31 @@ describe('dsh-base bundle', () => {
     // The platform layer folded into these rows: no separate patch file ships.
     expect(existsSync(resolve(root, 'windows.cordis.patch.yml'))).toBe(false)
   })
+
+  // Every enabled learned-memory row changes the first request of every
+  // session — two tool schemas and a prompt section — so whether an agent
+  // accumulates memory is a profile's decision. Enabling the group here once
+  // diffed 94 of 116 recorded scenarios across the sdk, headless, and acp
+  // profiles; this pins the composition rather than the fixtures.
+  it('leaves the whole learned-memory group for a profile to enable', () => {
+    const root = fileURLToPath(new URL('..', import.meta.url))
+    const parsed = yaml.load(
+      readFileSync(resolve(root, 'cordis.patch.yml'), 'utf8'),
+      { schema: entryListSchema },
+    ) as { insert?: { id?: string; disabled?: boolean }[] }[]
+    const rows = parsed.flatMap(patch => patch.insert ?? [])
+
+    for (const id of [
+      'memory-domain',
+      'memory-decay',
+      'memory-prompt',
+      'tool-self-reflect',
+      'tool-knowledge-base',
+      'self-improve-prompt',
+    ]) {
+      const row = rows.find(candidate => candidate.id === id)
+      if (row === undefined) throw new Error(`base patch must declare ${id}`)
+      expect(row.disabled, `${id} must ship disabled`).toBe(true)
+    }
+  })
 })

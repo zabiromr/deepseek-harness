@@ -1,5 +1,5 @@
 ---
-description: "The lesson-recall tool: how a deployment lets an agent search past lessons the always-on digest cannot show."
+description: "The lesson-recall tool: how a deployment lets an agent search past lessons the prompt digest cannot show."
 kind: "package-reference"
 ---
 
@@ -54,7 +54,7 @@ The tool derives the workspace from the calling agent's session rather than trus
 
 - [Learned memory subsystem](../../../docs/subsystems/memory.md) — the standings this tool reports and what they mean.
 - [`dsh-tool-self-reflect`](../tool-self-reflect/README.md) — the write side, and the only way to change a lesson's standing.
-- [`dsh-memory-prompt`](../../memory/memory-prompt/README.md) — the always-on digest this tool complements.
+- [`dsh-memory-prompt`](../../memory/memory-prompt/README.md) — the prompt digest this tool complements.
 
 <a id="model-experience"></a>
 ## Model Experience

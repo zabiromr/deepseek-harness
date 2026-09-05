@@ -504,8 +504,16 @@
 
     # ── learned-memory rows ─────────────────────────────────────────────────────
     # The Stage 1 self-evolution loop: durable evidence-bound lessons, the sweep
-    # that fades the ones nothing re-confirms, the always-on digest that carries
-    # them into a later session, and the two tools that write and search them.
+    # that fades the ones nothing re-confirms, the digest that carries them into
+    # a later session, and the two tools that write and search them.
+    #
+    # The whole group is disabled here. Every enabled row changes what the model
+    # sees on the first request of every session — two tool schemas and a prompt
+    # section — so leaving it on would make recorded memory a property of the
+    # base composition rather than a deployment's choice. Enable the group in a
+    # profile that wants lessons to persist across sessions; enable the rows
+    # together, because the tools write through the provider and the digest is
+    # what makes a written lesson reach a later run.
 
     # The memory provider. Its domain routes to the default `json` backend
     # declared on storage-domain above. The decay parameters are the ONE home of
@@ -515,6 +523,7 @@
     # immediately and retires on the next sweep.
     - id: memory-domain
       name: '@deepseek-ai/dsh-memory-domain'
+      disabled: true
       config:
         halfLifeMs: 2592000000
         dormantFloor: 0.25
@@ -523,32 +532,37 @@
     # Reclassification schedule. Only WHEN the arithmetic runs lives here.
     - id: memory-decay
       name: '@deepseek-ai/dsh-memory-decay'
+      disabled: true
       config:
         sweepIntervalMs: 21600000
         sweepOnStart: true
 
-    # The always-on digest. The budget is what keeps accumulated memory from
-    # crowding out the rest of the prompt.
+    # The digest. The budget is what keeps accumulated memory from crowding out
+    # the rest of the prompt once the group is enabled.
     - id: memory-prompt
       name: '@deepseek-ai/dsh-memory-prompt'
+      disabled: true
       config:
         maxLessons: 8
         maxChars: 2000
 
     - id: tool-self-reflect
       name: '@deepseek-ai/dsh-tool-self-reflect'
+      disabled: true
       config:
         allowGlobalScope: true
         maxBodyChars: 1000
 
     - id: tool-knowledge-base
       name: '@deepseek-ai/dsh-tool-knowledge-base'
+      disabled: true
       config:
         maxResults: 20
         allowCrossWorkspace: false
 
     - id: self-improve-prompt
       name: '@deepseek-ai/dsh-self-improve-prompt'
+      disabled: true
       config:
         showReflectionGuidance: true
         showRestatementGuidance: true

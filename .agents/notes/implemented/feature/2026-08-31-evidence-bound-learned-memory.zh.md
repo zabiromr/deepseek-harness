@@ -29,7 +29,7 @@ Status: implemented
 | `memory/memory` | Service Definition：词汇、证据规则，以及每个提供方共享的评分与选择函数 |
 | `memory/memory-domain` | 基于 `storage-domain` 的持久化提供方，`per-record` 布局 |
 | `memory/memory-ephemeral` | 用于测试、schema 生成与沙箱的进程内提供方 |
-| `memory/memory-prompt` | 受预算约束的常驻提示词摘要 |
+| `memory/memory-prompt` | 受预算约束的提示词摘要 |
 | `memory/memory-decay` | 定期重新分类清扫 |
 | `feedback/tool-self-reflect` | 面向模型的捕获：`record`、`confirm`、`contradict` |
 | `feedback/tool-knowledge-base` | 面向模型的检索，覆盖全部状态 |
@@ -38,6 +38,12 @@ Status: implemented
 选择、评分与复述都是该能力缝中的纯函数（`src/store.ts`、`src/score.ts`），因此两个提供方不可能在一条教训价值几何上产生分歧。衰减参数存放在服务上，因此摘要绝不可能按照清扫并未采用的半衰期来排序。每个服务方法都以拒绝而非在返回前抛出的方式报告失败；同步实现的提供方用该能力缝导出的 `promised` 辅助函数包装其函数体。
 
 四个空壳包被删除——`tool-pattern-cache`、`tool-feedback-aggregator`、`tool-meta-learner`、`tool-session-memory`——因为它们为同一个循环取了四个名字。另有五个作为后续阶段的名称保留而留存（`tool-plugin-evolver`、`tool-schema-evolver`、`tool-config-autofix`、`tool-adversarial-reviewer`、`tool-automated-benchmarker`），并在已发布 bundle 中改为 `disabled: true`：在行为就位之前，保留的名称不得提供给模型。`dsh-self-improve-prompt` 被重写为只描述真实存在的内容。
+
+### The group is a profile's choice, not the base composition's
+
+`dsh-base` 将全部习得记忆条目声明为 `disabled: true`。每个启用的条目都会改变模型在每个会话首次请求时所见的内容：两份工具 schema 与一个提示词分节。让该组保持开启，就使已记录的记忆成为基础组合自身的属性；录制会话固定装置捕获了这一点——116 个场景中有 94 个在请求头上出现差异，横跨 `sdk`、`headless` 与 `acp` 三个 profile。这些条目在 `dsh-web-app` 中一同启用，因为工具通过提供方写入，而摘要才是让已写入的教训抵达后续会话的环节；只启用捕获工具的 profile 将为无人读取的教训付出 schema 代价。
+
+这与预留条目已经遵循的规则相同，只是应用到了一项真正可用的能力上：智能体是否跨会话累积记忆是部署方的决定，而基础组合并不是一个部署。
 
 ## Two rules deliberately not adopted
 
