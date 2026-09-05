@@ -1,5 +1,5 @@
 ---
-description: "教训检索工具：部署方如何让智能体搜索常驻摘要无法展示的过往教训。"
+description: "教训检索工具：部署方如何让智能体搜索提示词摘要无法展示的过往教训。"
 kind: "package-reference"
 ---
 
@@ -54,7 +54,7 @@ kind: "package-reference"
 
 - [习得记忆子系统](../../../docs/subsystems/memory.zh.md) —— 本工具报告的各种地位及其含义。
 - [`dsh-tool-self-reflect`](../tool-self-reflect/README.zh.md) —— 写入侧，也是改变教训地位的唯一途径。
-- [`dsh-memory-prompt`](../../memory/memory-prompt/README.zh.md) —— 与本工具互补的常驻摘要。
+- [`dsh-memory-prompt`](../../memory/memory-prompt/README.zh.md) —— 与本工具互补的提示词摘要。
 
 <a id="model-experience"></a>
 ## 模型体验

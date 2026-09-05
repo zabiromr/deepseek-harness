@@ -14,13 +14,11 @@
     # Keep the same temporary process-wide PTC mode opt-in as the Web surface.
     mode: !!js process.env.DSH_TOOLS_MODE
 
-# Learned-memory plugins for headless mode. Headless runs are usually one-shot
-# tasks, so the capture side matters more than recall: a lesson recorded here is
-# for the next run, which may well be interactive.
-- id: tool-self-reflect
-  config:
-    allowGlobalScope: true
-    maxBodyChars: 1000
+# The learned-memory group stays disabled here, as dsh-base leaves it. A one-shot
+# task carries no earlier turn to reflect on, and enabling the capture tool alone
+# would add its schema to every headless request while the digest that makes a
+# recorded lesson reach a later run stays off. The Web profile is where the group
+# is enabled.
 
 - insert:
     # PTC mode is a core execution capability, not a Web component.

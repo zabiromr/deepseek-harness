@@ -29,7 +29,7 @@ The package topology:
 | `memory/memory` | Service Definition: vocabulary, the evidence rule, and the scoring and selection functions every provider shares |
 | `memory/memory-domain` | Durable provider over `storage-domain`, `per-record` layout |
 | `memory/memory-ephemeral` | In-process provider for tests, schema generation, and sandboxes |
-| `memory/memory-prompt` | The always-on budgeted prompt digest |
+| `memory/memory-prompt` | The budgeted prompt digest |
 | `memory/memory-decay` | The scheduled reclassification sweep |
 | `feedback/tool-self-reflect` | Model-facing capture: `record`, `confirm`, `contradict` |
 | `feedback/tool-knowledge-base` | Model-facing recall across every status |
@@ -38,6 +38,12 @@ The package topology:
 Selection, scoring, and restatement are pure functions in the seam (`src/store.ts`, `src/score.ts`), so the two providers cannot disagree about what a lesson is worth. Decay parameters live on the service, so a digest can never rank by a half-life the sweep does not apply. Every service method reports failure by rejecting rather than throwing before it returns; a provider with a synchronous body wraps it in the `promised` helper the seam exports.
 
 Four hollow packages are deleted — `tool-pattern-cache`, `tool-feedback-aggregator`, `tool-meta-learner`, `tool-session-memory` — because they named one loop four times. Five remain as name reservations for later stages (`tool-plugin-evolver`, `tool-schema-evolver`, `tool-config-autofix`, `tool-adversarial-reviewer`, `tool-automated-benchmarker`) and are now `disabled: true` in the shipped bundle: a reserved name must not be offered to the model until behaviour sits behind it. `dsh-self-improve-prompt` was rewritten to describe only what exists.
+
+### The group is a profile's choice, not the base composition's
+
+`dsh-base` declares every learned-memory row `disabled: true`. Each enabled row changes what the model sees on the first request of every session: two tool schemas and a prompt section. Leaving the group on made recorded memory a property of the base composition, which the recorded-session fixtures caught — 94 of 116 scenarios diffed on the request header, across the `sdk`, `headless`, and `acp` profiles. The rows enable together in `dsh-web-app`, because the tools write through the provider and the digest is what carries a written lesson into a later session; a profile that enables the capture tool alone would pay a schema for lessons nothing reads.
+
+This is the same rule the reserved rows already follow, applied to a capability that works: whether an agent accumulates memory across sessions is a deployment's decision, and the base composition is not a deployment.
 
 ## Two rules deliberately not adopted
 

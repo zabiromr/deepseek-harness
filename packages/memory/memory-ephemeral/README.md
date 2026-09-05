@@ -71,7 +71,7 @@ No direct invalidation; the named consumers own any request-prefix changes.
 
 These limits define when the in-process provider is a poor fit. They are current package constraints, not a task backlog.
 
-- **Nothing survives the host.** A restart loses every lesson, so the always-on digest starts empty in each new process.
+- **Nothing survives the host.** A restart loses every lesson, so the digest starts empty in each new process.
 - **Lessons are not shared.** Two hosts on one machine keep separate stores, and nothing reconciles them.
 - **Memory is unbounded.** The Map has no cap, so a long-running host that records continuously grows until it exits.
 
