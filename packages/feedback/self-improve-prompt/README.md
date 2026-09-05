@@ -96,3 +96,5 @@ These limits define when the section is a poor fit. They are current package con
 ### Dev Note
 
 This section previously advertised eleven tool names, nine of which resolved `{ status: 'ok' }` and did nothing. Keep the rule that replaced it: a block ships only when the behaviour behind it does, because an agent told it has a capability it lacks spends turns discovering otherwise.
+
+No runtime invariant companion is published: this package contributes one static system-prompt section; the prompt assembly it feeds is checked where multiple producers meet.

@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../runtime-diagnostics/invariants"
-    },
-    {
       "path": "../memory"
     }
   ]

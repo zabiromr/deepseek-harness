@@ -108,3 +108,5 @@ Indirectly, through the digest and tool consumers, which render stored lessons t
 ### 开发备注
 
 `score.ts`/`store.ts`（纯粹、与介质无关）与提供方（介质适配器）之间的划分是承重的：正是它让第二个提供方无需复制判断逻辑即可存在。新的选择或评分行为应留在本包，提供方则只负责读写各自的介质。
+
+不发布运行时不变式伴生入口：本包是 Service Definition——抽象成员、纯打分与校验辅助。它不拥有存储、不追加会话事件，因此证据与衰减规则由拥有记录的 provider 强制执行。

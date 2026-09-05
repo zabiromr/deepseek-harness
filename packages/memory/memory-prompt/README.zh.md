@@ -95,3 +95,5 @@ Lessons recorded from earlier sessions in this workspace, highest-standing first
 ### 开发备注
 
 缓存快照的设计源于 `PromptSection.text` 是同步的。要让摘要保持最新，就意味着让装配阻塞在一次存储读取上；这份滞后正是永不这样做所付出的有意代价。
+
+不发布运行时不变式伴生入口：本包从 memory 服务渲染摘要，不追加任何持久数据；其缓存的快照只有一个生产者。

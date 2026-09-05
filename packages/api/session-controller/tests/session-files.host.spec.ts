@@ -141,7 +141,7 @@ describe('session/file.list', () => {
 
     await expect(remoteOf(ctx).fileList({ path: '/workspace/gone' })).resolves.toMatchObject({
       ok: false,
-      error: { code: 'file-not-found' },
+      error: { code: 'session/file-not-found' },
     })
   })
 
@@ -151,7 +151,7 @@ describe('session/file.list', () => {
 
     await expect(remoteOf(ctx).fileList({ path: '/workspace/README.md' })).resolves.toMatchObject({
       ok: false,
-      error: { code: 'not-a-directory', details: { type: 'file' } },
+      error: { code: 'session/not-a-directory', details: { type: 'file' } },
     })
   })
 })
@@ -165,15 +165,15 @@ describe('session file Remotes without a filesystem provider', () => {
 
     await expect(remote.fileList({ path: '/workspace' })).resolves.toMatchObject({
       ok: false,
-      error: { code: 'unsupported' },
+      error: { code: 'session/filesystem-unsupported' },
     })
     await expect(remote.fileRead({ path: '/workspace/a.ts' })).resolves.toMatchObject({
       ok: false,
-      error: { code: 'unsupported' },
+      error: { code: 'session/filesystem-unsupported' },
     })
     await expect(remote.fileWrite({ path: '/workspace/a.ts', content: '' })).resolves.toMatchObject({
       ok: false,
-      error: { code: 'unsupported' },
+      error: { code: 'session/filesystem-unsupported' },
     })
   })
 })
@@ -194,7 +194,7 @@ describe('session/file.read', () => {
 
     await expect(remoteOf(ctx).fileRead({ path: '/workspace/gone.ts' })).resolves.toMatchObject({
       ok: false,
-      error: { code: 'file-not-found' },
+      error: { code: 'session/file-not-found' },
     })
   })
 
@@ -204,7 +204,7 @@ describe('session/file.read', () => {
 
     await expect(remoteOf(ctx).fileRead({ path: '/workspace/src' })).resolves.toMatchObject({
       ok: false,
-      error: { code: 'not-a-file', details: { type: 'directory' } },
+      error: { code: 'session/not-a-file', details: { type: 'directory' } },
     })
   })
 })
@@ -216,7 +216,7 @@ describe('session file guards', () => {
 
     await expect(remoteOf(ctx).fileRead({ path: '/workspace/big.log' })).resolves.toMatchObject({
       ok: false,
-      error: { code: 'too-large', details: { size: 5_000_000 } },
+      error: { code: 'session/file-too-large', details: { size: 5_000_000 } },
     })
   })
 
@@ -226,7 +226,7 @@ describe('session file guards', () => {
 
     await expect(remoteOf(ctx).fileRead({ path: '/workspace/logo.png' })).resolves.toMatchObject({
       ok: false,
-      error: { code: 'not-text' },
+      error: { code: 'session/file-not-text' },
     })
   })
 
@@ -256,7 +256,7 @@ describe('session file guards', () => {
 
     await expect(remote.fileWrite({
       path: '/workspace/a.ts', content: 'mine', expectedVersion: read.value.version,
-    })).resolves.toMatchObject({ ok: false, error: { code: 'stale-version' } })
+    })).resolves.toMatchObject({ ok: false, error: { code: 'session/file-stale-version' } })
     expect(fs.nodes.get('/workspace/a.ts')).toMatchObject({ content: 'theirs' })
   })
 

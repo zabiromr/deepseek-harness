@@ -86,3 +86,5 @@ These limits define when the package is a poor fit. They are current package con
 ### Dev Note
 
 The package is deliberately a registration shell: `src/index.ts` holds the Schemastery `Config`, the `defineTool` call, and nothing else. When real behaviour lands it should arrive together with a defined `action` vocabulary and a result that can express failure, because the current always-`ok` contract is the part callers will have written against. Keep the tool name stable across that change — reserving the name is what this package exists to do.
+
+No runtime invariant companion is published: this package registers one tool whose result is fixed; it appends no session events and owns no durable data a second observation could diverge from.

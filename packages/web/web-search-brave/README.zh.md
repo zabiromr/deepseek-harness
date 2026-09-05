@@ -81,7 +81,6 @@ kind: "package-reference"
 | `[src/index.ts](src/index.ts)` | 插件入口：配置模式、环境回退、提供程序注册 |
 | `[src/provider.ts](src/provider.ts)` | `BraveSearchProvider`：请求分发、中止分类、结果映射 |
 | `[src/types.ts](src/types.ts)` | Brave Search API 响应的线类型 |
-| `[src/invariant.ts](src/invariant.ts)` | 不变量伴生（没有运行时不变量；合同在服务中强制执行） |
 
 ### 请求与映射流程
 
@@ -142,3 +141,4 @@ Brave Search 提供了一个 `/search/web` 缓存内容端点。添加它作为 
 
 </details>
 
+不发布运行时不变式伴生入口：本 provider 只将一次外部 HTTP 响应映射为服务的结果类型；边界与中止语义属于调用它的服务。

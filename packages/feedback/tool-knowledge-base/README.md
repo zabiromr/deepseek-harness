@@ -101,3 +101,5 @@ These limits define when the recall tool is a poor fit. They are current package
 ### Dev Note
 
 Workspace scoping is derived from the caller rather than accepted as an argument on purpose. Making it a parameter would let a model widen its own reach past what the deployment configured.
+
+No runtime invariant companion is published: this tool reads and writes through the memory service, which owns the records; the package itself keeps no second copy to compare.

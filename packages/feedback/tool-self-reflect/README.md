@@ -105,3 +105,5 @@ These limits define when the capture tool is a poor fit. They are current packag
 ### Dev Note
 
 The evidence argument is required at the schema level rather than validated only in the body, so a model reading the schema sees the obligation before it composes a call. Keep it that way: the rule is easier to follow than to recover from.
+
+No runtime invariant companion is published: this tool writes lessons through the memory service, which owns the records; the package itself keeps no second copy to compare.

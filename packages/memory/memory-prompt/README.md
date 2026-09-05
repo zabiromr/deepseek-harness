@@ -95,3 +95,5 @@ These limits define when the digest is a poor fit. They are current package cons
 ### Dev Note
 
 The cached-snapshot design exists because `PromptSection.text` is synchronous. Making the digest current would mean blocking assembly on a store read; the staleness is the deliberate price of never doing that.
+
+No runtime invariant companion is published: this package renders a digest from the memory service and appends nothing durable; the snapshot it caches has one producer.

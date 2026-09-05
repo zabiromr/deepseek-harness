@@ -79,3 +79,5 @@ Indirectly, through the digest and tool consumers, which render stored lessons t
 ### 开发备注
 
 正是本提供方让工具包能够针对真实能力缝而非手写替身来测试并生成其 schema。请保持它与持久化提供方行为一致——任何分歧都会让那些测试证明错误的东西。
+
+不发布运行时不变式伴生入口：本 provider 的存储是进程内私有状态，没有独立事件或第二数据源；校验它等于重跑它声称要验证的实现。

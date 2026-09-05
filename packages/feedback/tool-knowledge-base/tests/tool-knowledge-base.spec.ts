@@ -13,6 +13,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import EphemeralMemory from '@deepseek-ai/dsh-memory-ephemeral'
 import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionHeader } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import * as tool from '../src/index.ts'
 
@@ -32,12 +33,10 @@ afterEach(async () => {
 /** A parent Agent backed by a real Session — the tool reads `agent.session`. */
 function agentWithSession(cwd?: string): Agent & { session: Session } {
   const id = SessionId('parent-1')
-  const session = Session.create(id, undefined, {
-    version: SESSION_FORMAT_VERSION,
-    id,
-    createdAt: 0,
-    ...cwd === undefined ? {} : { cwd },
-  })
+  const header: SessionHeader = cwd === undefined
+    ? { version: SESSION_FORMAT_VERSION, id, createdAt: 0, isSeeded: false }
+    : { version: SESSION_FORMAT_VERSION, id, createdAt: 0, isSeeded: false, cwd }
+  const session = Session.create(id, undefined, header)
   return { id, session } as unknown as Agent & { session: Session }
 }
 

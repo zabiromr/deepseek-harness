@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/web/web-search-brave/README.md
-README.md: 0b411c2204ef526ac652b1ce52f3e1111a8f0b94
-README.zh.md: 937d07f2b449f4f08dc6e5c8ae217b501ed304f6
+README.md: 17b5529e4b8d86b8d678b7d0a3e129e60670e4c1
+README.zh.md: 5607ea7f2c5bca77f5e83b0ee76c3057d59ec09a

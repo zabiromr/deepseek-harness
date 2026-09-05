@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-memory-decay",
-  "description": "Scheduled decay sweep for ctx.memory — reclassifies lessons nothing re-confirms",
-  "version": "0.1.2-alpha.1",
+  "description": "Scheduled decay sweep for ctx.memory \u2014 reclassifies lessons nothing re-confirms",
+  "version": "0.1.2-alpha.5",
   "publishConfig": {
     "access": "public"
   },
@@ -18,16 +18,11 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./invariant": {
-      "types": "./lib/types/invariant.d.ts",
-      "default": "./lib/invariant.js"
-    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
-    "lib/invariant.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
@@ -36,12 +31,10 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-memory": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^",
-    "@deepseek-ai/dsh-invariants": "workspace:^",
     "@deepseek-ai/dsh-memory": "workspace:^"
   }
 }

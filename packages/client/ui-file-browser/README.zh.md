@@ -73,3 +73,5 @@ kind: "package-reference"
 ### 开发备注
 
 node 半边刻意只重新导出类型。它此前的形态重新导出了 React 组件，从而把 `.module.css` 导入拉进 node bundle 并导致构建失败——浏览器组件必须只能通过 `exports["./client"]` 抵达。`DetailsBrowser` 通过 `src/client/index.ts` 中构造的注入面接收其文件系统回调，而不是自己导入 Remote，正是这一点让组件可测试，并让授权身份留在注册方条目上。
+
+不发布运行时不变式伴生入口：本 Client 插件渲染详情面板声明的插槽，读取并不由自己拥有的 Session Remote；列表与文件系统之间的关系全部由 Host 拥有。

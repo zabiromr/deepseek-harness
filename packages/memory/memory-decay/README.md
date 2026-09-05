@@ -78,3 +78,5 @@ These limits define when the sweep is a poor fit. They are current package const
 ### Dev Note
 
 Keeping the parameters on the service rather than here is deliberate: a sweep configured with a different half-life than the ranking would silently produce a digest whose order contradicts its own status field.
+
+No runtime invariant companion is published: this package is pure arithmetic over records the provider owns; it observes no event stream of its own.

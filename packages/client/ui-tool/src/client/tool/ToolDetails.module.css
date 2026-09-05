@@ -55,6 +55,7 @@
   padding: 4px 10px;
   border: none;
   border-radius: 999px;
+  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: var(--dsw-font-xs-13);

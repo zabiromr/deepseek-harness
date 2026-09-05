@@ -52,7 +52,7 @@ export function apply(ctx: ClientContext): void {
       if (result.ok) return { kind: 'written', version: result.value.version }
       // The Host distinguishes a refused stale write from a failed one; the
       // browser keeps the user's buffer in the first case.
-      return result.error.code === 'stale-version' ? { kind: 'stale' } : { kind: 'failed' }
+      return result.error.code === 'session/file-stale-version' ? { kind: 'stale' } : { kind: 'failed' }
     },
     openFilePath: async (path: string) => {
       await remote.session.openWorkspacePath({ path })

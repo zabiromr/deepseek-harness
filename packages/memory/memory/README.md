@@ -108,3 +108,5 @@ These limits define when the learned-memory service is incomplete on its own. Th
 ### Dev Note
 
 The split between `score.ts`/`store.ts` (pure, medium-independent) and the providers (medium adapters) is load-bearing: it is what lets a second provider exist without duplicating judgement. Keep new selection or scoring behavior in this package, and keep providers to reading and writing their medium.
+
+No runtime invariant companion is published: this package is a Service Definition — abstract members, pure scoring, and validation helpers. It owns no store and appends no session events, so the evidence and decay rules are enforced by the provider that owns the records.

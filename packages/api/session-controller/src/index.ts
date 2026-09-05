@@ -4,9 +4,10 @@ import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import { canOpenNativePath, openNativePath } from '@deepseek-ai/dsh-native-command'
-import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
-import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { FsError, type FileSystem, type FsTarget, type FsVersion } from '@deepseek-ai/dsh-fs'
 import {
   ApiSessionAgentController,
@@ -17,7 +18,11 @@ import { SessionCommandController } from './commands.ts'
 import { SessionControlController } from './control.ts'
 import { SessionHistoryController } from './history.ts'
 import { SessionFileReferences } from './file-references.ts'
-import { ApiSessionList, DEFAULT_COLD_BLANK_PROBE_MAX_BYTES } from './list.ts'
+import {
+  ApiSessionList,
+  DEFAULT_COLD_BLANK_PROBE_MAX_BYTES,
+  DEFAULT_COLD_BLANK_PROBE_MAX_EVENTS,
+} from './list.ts'
 import { buildModelCatalog } from './catalog.ts'
 import { installModelSelectionProjection } from './model-selection-projection.ts'
 import { SessionSkillCatalog } from './skill-catalog.ts'
@@ -73,7 +78,9 @@ declare module '@deepseek-ai/cordis' {
 
 /** Session Controller deployment policy. */
 export interface Config {
-  /** Maximum cold Session artifact size eligible for one full projection observation. */
+  /** Maximum stat-reported event count eligible for one full cold projection observation; `0` disables the event-count gate. */
+  readonly coldBlankProbeMaxEvents?: number
+  /** Maximum stat-reported artifact byte size eligible for one full cold projection observation; `0` disables the byte-size gate. */
   readonly coldBlankProbeMaxBytes?: number
   /** Exclusive byte ceiling on one `file.read`; a larger file is refused rather than loaded. */
   readonly fileReadMaxBytes?: number
@@ -112,6 +119,7 @@ export class SessionController extends TypertRemoteService {
   ]
 
   static Config: z<Config> = z.object({
+    coldBlankProbeMaxEvents: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_EVENTS),
     coldBlankProbeMaxBytes: z.natural().default(DEFAULT_COLD_BLANK_PROBE_MAX_BYTES),
     fileReadMaxBytes: z.natural().default(DEFAULT_FILE_READ_MAX_BYTES),
     nativeOpen: z.boolean(),
@@ -129,7 +137,8 @@ export class SessionController extends TypertRemoteService {
 
   /**
    * @param ctx - Host context containing the Session capability assembly.
-   * @param config - cold-list observation policy.
+   * @param config - cold-list observation and native-opener deployment policy.
+   * @param internals - host integrations replaceable by direct unit tests.
    */
   constructor(ctx: Context, config: Config, internals: SessionControllerInternals = {}) {
     super(ctx, 'sessionController', { namespace: 'session' })
@@ -143,10 +152,10 @@ export class SessionController extends TypertRemoteService {
       await Promise.allSettled([...this.promotions])
     }, 'session-controller.promotions')
     this.history = new SessionHistoryController(ctx, (observation) => { this.promote(observation) })
-    this.listState = new ApiSessionList(
-      ctx,
-      config.coldBlankProbeMaxBytes ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES,
-    )
+    this.listState = new ApiSessionList(ctx, {
+      coldBlankProbeMaxEvents: config.coldBlankProbeMaxEvents ?? DEFAULT_COLD_BLANK_PROBE_MAX_EVENTS,
+      coldBlankProbeMaxBytes: config.coldBlankProbeMaxBytes ?? DEFAULT_COLD_BLANK_PROBE_MAX_BYTES,
+    })
     this.fileReadMaxBytes = config.fileReadMaxBytes ?? DEFAULT_FILE_READ_MAX_BYTES
     this.openPath = internals.openPath ?? openNativePath
     this.canOpenPath = internals.canOpenPath
@@ -212,10 +221,14 @@ export class SessionController extends TypertRemoteService {
   inspect(
     sessionId: SessionId,
     signal?: AbortSignal,
-  ): Promise<{ meta: SessionHeader; events: SessionEvent[] }> {
+  ): Promise<SessionInspection> {
     const attached = this.ctx.sessions.get(sessionId)
     if (attached !== undefined) {
-      return Promise.resolve({ meta: attached.header, events: [...attached.events] })
+      return Promise.resolve({
+        meta: attached.header,
+        inheritedEventCount: attached.inheritedEventCount,
+        events: attached.snapshotEvents(),
+      })
     }
     return inspectApiSession(this.ctx, sessionId, signal)
   }
@@ -285,7 +298,7 @@ export class SessionController extends TypertRemoteService {
    * @param request - path after best-effort Session workspace resolution.
    * @param signal - caller lifetime; abort terminates the native command.
    * @returns confirmation after the native opener accepts the path.
-   * @throws TypertRemoteFailure when the request is invalid, cancelled, or the opener fails.
+   * @throws RemoteError when the request is invalid, cancelled, or the opener fails.
    */
   @Remote('openWorkspacePath')
   async openWorkspacePath(
@@ -293,27 +306,23 @@ export class SessionController extends TypertRemoteService {
     signal: AbortSignal,
   ): Promise<SessionOpenWorkspacePathValue> {
     if (request.path.length === 0) {
-      throw new TypertRemoteFailure({
-        code: 'bad-request',
-        message: 'session.openWorkspacePath requires a non-empty path',
-        details: {},
-      })
+      throw new RemoteError(
+        'gateway/bad-request',
+        'session.openWorkspacePath requires a non-empty path',
+        {},
+      )
     }
     signal.throwIfAborted()
     try {
       await this.openPath(request.path, signal)
       return { opened: true }
     } catch (error: unknown) {
-      if (signal.aborted) {
-        throw new TypertRemoteFailure({
-          code: 'cancelled', message: 'path open was aborted', details: {},
-        })
-      }
-      throw new TypertRemoteFailure({
-        code: 'internal',
-        message: `path open failed: ${error instanceof Error ? error.message : String(error)}`,
-        details: {},
-      })
+      if (signal.aborted) throw new RemoteError('gateway/cancelled', 'path open was aborted', {})
+      throw new RemoteError(
+        'gateway/internal',
+        `path open failed: ${error instanceof Error ? error.message : String(error)}`,
+        {},
+      )
     }
   }
 
@@ -416,7 +425,7 @@ export class SessionController extends TypertRemoteService {
    * @param request - absolute file path within the workspace.
    * @param signal - cancellation signal for the resolve, stat, and read steps.
    * @returns decoded UTF-8 file content.
-   * @throws TypertRemoteFailure when the file is absent, binary, or too large.
+   * @throws RemoteError when the file is absent, binary, or too large.
    */
   @Remote('file.read')
   async fileRead(request: SessionFileReadRequest, signal: AbortSignal): Promise<SessionFileReadValue> {
@@ -424,27 +433,27 @@ export class SessionController extends TypertRemoteService {
     const target = await fs.resolve(request.path, { signal })
     const info = await fs.stat(target, signal)
     if (info === undefined) {
-      throw new TypertRemoteFailure({
-        code: 'file-not-found',
-        message: `file not found: ${request.path}`,
-        details: { path: request.path },
-      })
+      throw new RemoteError(
+        'session/file-not-found',
+        `file not found: ${request.path}`,
+        { path: request.path },
+      )
     }
     if (info.type !== 'file') {
-      throw new TypertRemoteFailure({
-        code: 'not-a-file',
-        message: `${request.path} is not a regular file`,
-        details: { path: request.path, type: info.type },
-      })
+      throw new RemoteError(
+        'session/not-a-file',
+        `${request.path} is not a regular file`,
+        { path: request.path, type: info.type },
+      )
     }
     // Refuse by the stat size before reading: the caller holds the whole
     // response in memory, so an oversized file must never be decoded at all.
     if (info.size !== undefined && info.size > this.fileReadMaxBytes) {
-      throw new TypertRemoteFailure({
-        code: 'too-large',
-        message: `${request.path} is ${String(info.size)} bytes, over the ${String(this.fileReadMaxBytes)} byte read limit`,
-        details: { path: request.path, size: info.size, limit: this.fileReadMaxBytes },
-      })
+      throw new RemoteError(
+        'session/file-too-large',
+        `${request.path} is ${String(info.size)} bytes, over the ${String(this.fileReadMaxBytes)} byte read limit`,
+        { path: request.path, size: info.size, limit: this.fileReadMaxBytes },
+      )
     }
     const content = await this.readTextOrRefuse(fs, target, request.path, signal)
     return { content, version: info.version as string as SessionFileVersion }
@@ -458,7 +467,7 @@ export class SessionController extends TypertRemoteService {
    * @param path - the requested path, for the failure message.
    * @param signal - cancellation signal for the read.
    * @returns the decoded text.
-   * @throws TypertRemoteFailure when the file is not UTF-8 text.
+   * @throws RemoteError when the file is not UTF-8 text.
    */
   private async readTextOrRefuse(
     fs: FileSystem,
@@ -470,11 +479,11 @@ export class SessionController extends TypertRemoteService {
       return await fs.readText(target, signal)
     } catch (error: unknown) {
       if (error instanceof FsError && error.code === 'FS_NOT_TEXT') {
-        throw new TypertRemoteFailure({
-          code: 'not-text',
-          message: `${path} is not UTF-8 text`,
-          details: { path },
-        })
+        throw new RemoteError(
+          'session/file-not-text',
+          `${path} is not UTF-8 text`,
+          { path },
+        )
       }
       throw error
     }
@@ -485,16 +494,16 @@ export class SessionController extends TypertRemoteService {
    * read: a deployment that mounts no filesystem provider still serves every
    * other Session operation, and only the file Remotes refuse.
    * @returns the mounted filesystem capability.
-   * @throws TypertRemoteFailure when the deployment mounts no filesystem provider.
+   * @throws RemoteError when the deployment mounts no filesystem provider.
    */
   private fileSystem(): FileSystem {
     const fs = this.ctx.get('fs')
     if (fs === undefined) {
-      throw new TypertRemoteFailure({
-        code: 'unsupported',
-        message: 'this deployment mounts no filesystem provider',
-        details: {},
-      })
+      throw new RemoteError(
+        'session/filesystem-unsupported',
+        'this deployment mounts no filesystem provider',
+        {},
+      )
     }
     return fs
   }
@@ -504,7 +513,7 @@ export class SessionController extends TypertRemoteService {
    * @param request - directory path resolved by the Host filesystem.
    * @param signal - cancellation signal for the resolve, stat, and list steps.
    * @returns the resolved directory path and its direct children in stable name order.
-   * @throws TypertRemoteFailure when the directory is absent or the path is not a directory.
+   * @throws RemoteError when the directory is absent or the path is not a directory.
    */
   @Remote('file.list')
   async fileList(request: SessionFileListRequest, signal: AbortSignal): Promise<SessionFileListValue> {
@@ -512,18 +521,18 @@ export class SessionController extends TypertRemoteService {
     const target = await fs.resolve(request.path, { signal })
     const info = await fs.stat(target, signal)
     if (info === undefined) {
-      throw new TypertRemoteFailure({
-        code: 'file-not-found',
-        message: `directory not found: ${request.path}`,
-        details: { path: request.path },
-      })
+      throw new RemoteError(
+        'session/file-not-found',
+        `directory not found: ${request.path}`,
+        { path: request.path },
+      )
     }
     if (info.type !== 'directory') {
-      throw new TypertRemoteFailure({
-        code: 'not-a-directory',
-        message: `${request.path} is not a directory`,
-        details: { path: request.path, type: info.type },
-      })
+      throw new RemoteError(
+        'session/not-a-directory',
+        `${request.path} is not a directory`,
+        { path: request.path, type: info.type },
+      )
     }
     const entries = await fs.listDir(target, signal)
     return {
@@ -541,7 +550,7 @@ export class SessionController extends TypertRemoteService {
    * @param request - absolute file path and full content to write.
    * @param signal - cancellation signal for the resolve and write steps.
    * @returns confirmation of the write operation.
-   * @throws TypertRemoteFailure when the path is invalid or the write fails.
+   * @throws RemoteError when the path is invalid or the write fails.
    */
   @Remote('file.write')
   async fileWrite(request: SessionFileWriteRequest, signal: AbortSignal): Promise<SessionFileWriteValue> {
@@ -558,11 +567,11 @@ export class SessionController extends TypertRemoteService {
       return { operation: outcome.operation, version: outcome.version as string as SessionFileVersion }
     } catch (error: unknown) {
       if (error instanceof FsError && error.code === 'FS_STALE_VERSION') {
-        throw new TypertRemoteFailure({
-          code: 'stale-version',
-          message: `${request.path} changed since it was read`,
-          details: { path: request.path },
-        })
+        throw new RemoteError(
+          'session/file-stale-version',
+          `${request.path} changed since it was read`,
+          { path: request.path },
+        )
       }
       throw error
     }

@@ -73,3 +73,5 @@ These limits define when the package is a poor fit. They are current package con
 ### Dev Note
 
 The node half deliberately re-exports types only. Its earlier form re-exported the React components, which pulled `.module.css` imports into the node bundle and broke the build — the browser components must stay reachable only through `exports["./client"]`. `DetailsBrowser` receives its filesystem callbacks as an injected face built in `src/client/index.ts` rather than importing a Remote itself, which is what keeps the component testable and the authorizing identity with the registering entry. Listing rows are keyed by name, not path: the Host resolves each child, so a symlink and its target repeat one path within a single listing.
+
+No runtime invariant companion is published: this Client plugin renders a slot the details panel declares and reads Session Remotes it does not own; the Host owns every relation between a listing and the filesystem.

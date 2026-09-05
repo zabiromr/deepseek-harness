@@ -78,3 +78,5 @@ Indirectly, through the digest, whose contents change as lessons fade.
 ### 开发备注
 
 把参数放在服务上而非此处是有意为之：一次以不同半衰期配置的清扫，会静默产生顺序与其自身状态字段相矛盾的摘要。
+
+不发布运行时不变式伴生入口：本包只是对 provider 所拥有记录的纯算术运算，自身不观测任何事件流。

@@ -81,7 +81,6 @@ The provider is a thin adapter over the Brave Search API with one rule:
 | `[src/index.ts](src/index.ts)` | Plugin entry: config schema, environment fallback, provider registration |
 | `[src/provider.ts](src/provider.ts)` | The `BraveSearchProvider`: request dispatch, abort classification, result mapping |
 | `[src/types.ts](src/types.ts)` | Brave Search wire types for the API response |
-| `[src/invariant.ts](src/invariant.ts)` | Invariant companion (no runtime invariant; contracts are enforced at the service) |
 
 ### Request and mapping flow
 
@@ -146,3 +145,4 @@ Brave Search offers a `/search/web` cached content endpoint. Adding it as a `Web
 
 </details>
 
+No runtime invariant companion is published: this provider maps one external HTTP response into the service's result type; the bounds and abort semantics belong to the service that calls it.

@@ -79,3 +79,5 @@ These limits define when the in-process provider is a poor fit. They are current
 ### Dev Note
 
 This provider is what lets a tool package be tested and its schema generated against the real seam rather than a hand-written stand-in. Keep it behaviourally identical to the durable provider — any divergence would make those tests prove the wrong thing.
+
+No runtime invariant companion is published: this provider's store is private in-process state with no independent event or second data source; checking it would re-run the implementation it claims to verify.
