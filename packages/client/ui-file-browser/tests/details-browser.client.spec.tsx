@@ -140,9 +140,15 @@ describe('details file browser', () => {
     expect(screen.getByRole('textbox')).toBeDefined()
 
     readFile.mockClear()
+    readFile.mockResolvedValueOnce({ content: 'theirs', version: 'v2' as SessionFileVersion })
     fireEvent.click(screen.getByText(zh['fileBrowser.reload']))
     await settle()
+
+    // Reload must replace what the user is looking at: the editor owns its
+    // buffer, so a stale one would survive the refresh and read as a no-op.
     expect(readFile).toHaveBeenCalledWith('/w/README.md')
+    expect(screen.queryByText(zh['fileBrowser.conflict'])).toBeNull()
+    expect(screen.getByText('theirs')).toBeDefined()
   })
 
   it('hands the open path to the Host opener', async () => {

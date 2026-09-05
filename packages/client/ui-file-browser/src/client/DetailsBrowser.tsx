@@ -238,7 +238,11 @@ export function DetailsBrowser({
       {loading && <div className={css.loadingState}>{t('fileBrowser.loading')}</div>}
       {open !== null
         ? (
+          // Keyed by the version the content came from: the editor owns its
+          // buffer and mode, so a reload after a conflict must remount it or
+          // the user keeps looking at the text the write just refused.
           <FileEditor
+            key={`${open.path}:${String(open.version)}`}
             label={open.path}
             labels={{
               copy: t('copy'),
