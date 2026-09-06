@@ -12,7 +12,7 @@ import type {
 import LlmRuntime, { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, ReasoningEffortId, userAgent } from '@deepseek-ai/dsh-llm'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
-import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { MAX_TIMER_DELAY_MS, deadline } from '@deepseek-ai/dsh-timeout'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { DEFAULT_MAX_REQUEST_IMAGE_BYTES, resolveProfiles } from '../src/config.ts'
 import { memoryAuth } from './auth-double.ts'
@@ -52,6 +52,41 @@ async function harness(baseURL: string, overrides: Record<string, unknown> = {})
     providers: { deepseek: { apiKeyEnv: 'PI_TEST_KEY', baseURL, ...overrides } },
   })
   return ctx
+}
+
+/**
+ * Idle window for the watchdog case. It must exceed loopback connection setup
+ * on the slowest supported host, because the first window covers dispatching
+ * the request as well as waiting for its first event; measured setup on a
+ * Windows host is roughly 45ms.
+ */
+const STREAM_IDLE_MS = 1_000
+
+/** Bound on a fixture signal: well past the window under test, well inside the case budget. */
+const OBSERVATION_TIMEOUT_MS = 5_000
+
+/**
+ * Case budget for the watchdog case, above the lane default so the bound above
+ * decides the outcome. A case that ends at the runner's budget reports a bare
+ * timeout, which is what hid the real cause here: the request was never
+ * dispatched, and the assertion blamed a socket that had never opened.
+ */
+const WATCHDOG_CASE_TIMEOUT_MS = 20_000
+
+/**
+ * Await a fixture signal under a bound that cannot decide the outcome.
+ * @param signal - the fixture promise to observe.
+ * @param message - what failed to happen, reported if the bound is reached.
+ * @returns nothing; rejects with `message` if the signal does not settle.
+ */
+async function within(signal: Promise<void>, message: string): Promise<void> {
+  using bound = deadline(undefined, OBSERVATION_TIMEOUT_MS, 'TEST_OBSERVATION')
+  await Promise.race([
+    signal,
+    new Promise<never>((_resolve, reject) => {
+      bound.signal.addEventListener('abort', () => { reject(new Error(message)) }, { once: true })
+    }),
+  ])
 }
 
 /** Direct adapter over the real profile resolver, with a fixed key per call. */
@@ -412,22 +447,28 @@ describe('PiAiAdapter provider routing', () => {
     })
   })
 
+  // The window under test must close on a gap in an established stream. A
+  // window smaller than the host's loopback connect setup expires while the
+  // request is still being dispatched, so the SDK abandons it before the
+  // server ever reads one — and the close being asserted is then of a socket
+  // that was never opened. `hold` keeps the reply open and silent after its
+  // first event, so the second window expires because nothing is sending,
+  // not because a scripted delay happened to outlast a timer.
   it('stops the SDK request when the adapter idle watchdog expires', async () => {
-    const server = await mockServer([{ events: textEvents, delayMs: 200 }])
-    const ctx = await harness(server.url, { streamIdleTimeoutMs: 20 })
+    const server = await mockServer([{ events: [textEvents[0]!], hold: true }])
+    const ctx = await harness(server.url, { streamIdleTimeoutMs: STREAM_IDLE_MS })
 
     const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+
+    // Name the precondition, so a host that cannot dispatch a loopback request
+    // inside the idle window reports that instead of an unclosed socket.
+    await within(server.requestReceived, 'SDK request never reached the server')
     expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'TIMEOUT' } })
-    await Promise.race([
-      server.responseClosed,
-      new Promise<never>((_resolve, reject) => {
-        setTimeout(() => { reject(new Error('SDK request did not close after idle timeout')) }, 1_000)
-      }),
-    ])
+    await within(server.responseClosed, 'SDK request did not close after idle timeout')
 
     expect(server.paths).toEqual(['/chat/completions'])
     expect(server.closedResponses).toBe(1)
-  })
+  }, WATCHDOG_CASE_TIMEOUT_MS)
 })
 
 describe('provider profile lifecycle', () => {

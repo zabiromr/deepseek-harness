@@ -8,13 +8,21 @@ export interface MockServer {
   headers: IncomingMessage['headers'][]
   readonly closedResponses: number
   responseClosed: Promise<void>
+  /** Resolves when the first request's body has been read, before any reply. */
+  requestReceived: Promise<void>
 }
 
 const servers: Server[] = []
 
 /** Close every server opened since the last call; run from each spec's afterEach. */
 export async function closeMockServers(): Promise<void> {
-  await Promise.all(servers.splice(0).map(server => new Promise(resolve => server.close(resolve))))
+  await Promise.all(servers.splice(0).map(server => new Promise((resolve) => {
+    // A `hold` response never ends on its own, so `close` alone would wait for
+    // a connection nothing is going to finish. Drop the sockets first, then
+    // await the close callback, so teardown reaches quiescence either way.
+    server.closeAllConnections()
+    server.close(resolve)
+  })))
 }
 
 /** A minimal complete text generation in pi-ai's chat-completions shape. */
@@ -32,12 +40,19 @@ export async function mockServer(script: {
   body?: string
   delayMs?: number
   headers?: Record<string, string>
+  /**
+   * Keep the response open after the scripted events instead of ending it, so
+   * a consumer's idle window closes on a silent established stream rather than
+   * on the server's own completion.
+   */
+  hold?: boolean
 }[]): Promise<MockServer> {
   const paths: string[] = []
   const requests: unknown[] = []
   const headers: IncomingMessage['headers'][] = []
   let closedResponses = 0
   const responseClosed = Promise.withResolvers<undefined>()
+  const requestReceived = Promise.withResolvers<undefined>()
   const server = createServer((request: IncomingMessage, response: ServerResponse) => {
     response.on('close', () => {
       closedResponses += 1
@@ -46,6 +61,7 @@ export async function mockServer(script: {
     let body = ''
     request.on('data', (chunk: Buffer) => { body += chunk.toString('utf8') })
     request.on('end', () => {
+      requestReceived.resolve(undefined)
       paths.push(request.url ?? '')
       requests.push(body.length === 0 ? undefined : JSON.parse(body))
       headers.push(request.headers)
@@ -64,7 +80,10 @@ export async function mockServer(script: {
       let index = 0
       const writeNext = (): void => {
         const event = behavior.events?.[index++]
-        if (event === undefined) { response.end(); return }
+        if (event === undefined) {
+          if (behavior.hold !== true) response.end()
+          return
+        }
         response.write(`data: ${event}\n\n`)
         if (behavior.delayMs === undefined) writeNext()
         else setTimeout(writeNext, behavior.delayMs)
@@ -82,6 +101,7 @@ export async function mockServer(script: {
     requests,
     headers,
     responseClosed: responseClosed.promise,
+    requestReceived: requestReceived.promise,
     get closedResponses() { return closedResponses },
   }
 }
