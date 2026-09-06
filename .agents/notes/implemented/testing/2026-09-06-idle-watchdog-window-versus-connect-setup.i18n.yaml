@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-09-06-idle-watchdog-window-versus-connect-setup.md
+2026-09-06-idle-watchdog-window-versus-connect-setup.md: 6c8db3d5cecc7ef84186023f3d68c6eed987f20d
+2026-09-06-idle-watchdog-window-versus-connect-setup.zh.md: 22aebba2e98ba20dd98ef17975eb77a0a7be861d
