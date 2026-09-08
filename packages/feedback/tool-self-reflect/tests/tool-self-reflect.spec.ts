@@ -12,7 +12,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import EphemeralMemory from '@deepseek-ai/dsh-memory-ephemeral'
-import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionHeader } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import * as tool from '../src/index.ts'
@@ -30,14 +30,31 @@ afterEach(async () => {
   context = undefined
 })
 
-/** A parent Agent backed by a real Session — the tool reads `agent.session`. */
+/**
+ * A parent Agent backed by a real Session — the tool reads `agent.session`.
+ * The session carries three completed turns, so seq 0 through 5 name real
+ * events: the tool resolves every citation against the log, and a session with
+ * an empty log can cite nothing.
+ */
 function agentWithSession(cwd?: string): Agent & { session: Session } {
   const id = SessionId('parent-1')
   const header: SessionHeader = cwd === undefined
     ? { version: SESSION_FORMAT_VERSION, id, createdAt: 0, isSeeded: false }
     : { version: SESSION_FORMAT_VERSION, id, createdAt: 0, isSeeded: false, cwd }
   const session = Session.create(id, undefined, header)
+  seedTurns(session)
   return { id, session } as unknown as Agent & { session: Session }
+}
+
+/**
+ * Append three completed turns to a session.
+ * @param session - the session to seed.
+ */
+function seedTurns(session: Session): void {
+  for (const turn of [1, 2, 3]) {
+    session.append('turn/start', { turn })
+    session.append('turn/end', { turn, reason: { kind: 'completed' } })
+  }
 }
 
 /**
@@ -98,16 +115,52 @@ describe('recording a lesson', () => {
     expect(stored[0]?.evidence[0]?.session).toBe('parent-1')
   })
 
-  it('keeps an explicit session on a citation', async () => {
+  // A citation is the lesson's only route back to what produced it, so the
+  // identifier the model writes is a claim to resolve rather than a value to
+  // store. A model that writes `current`, or any session it never saw, would
+  // otherwise leave the lesson permanently unreplayable while still passing
+  // the rule that evidence must be present.
+  it('refuses a citation naming a session it cannot read', async () => {
     const ctx = await setup()
+    const result = await call(ctx, {
+      action: 'record',
+      title: 'A lesson',
+      body: 'Body.',
+      evidence: [{ session: 'current', seq: [3] }],
+    })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain("evidence names session 'current'")
+    expect(await ctx.memory.recall({ limit: 10 })).toHaveLength(0)
+  })
+
+  it('refuses a citation whose seq names no event in the session', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, {
+      action: 'record',
+      title: 'A lesson',
+      body: 'Body.',
+      evidence: [{ seq: [3, 99] }],
+    })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('holds no event at seq 99')
+    expect(await ctx.memory.recall({ limit: 10 })).toHaveLength(0)
+  })
+
+  it('accepts a citation naming another session the store can read', async () => {
+    const ctx = await setup()
+    await ctx.plugin(SessionStore)
+    const other = ctx.sessions.create(SessionId('other-1'))
+    seedTurns(other)
+
     await call(ctx, {
       action: 'record',
       title: 'A lesson',
       body: 'Body.',
-      evidence: [{ session: 'other-session', seq: [3] }],
+      evidence: [{ session: 'other-1', seq: [3] }],
     })
+
     const stored = await ctx.memory.recall({ limit: 10 })
-    expect(stored[0]?.evidence[0]?.session).toBe('other-session')
+    expect(stored[0]?.evidence[0]?.session).toBe('other-1')
   })
 
   it('rejects a capture with no citation', async () => {
@@ -195,7 +248,7 @@ describe('restating a lesson', () => {
   it('confirms an existing lesson', async () => {
     const ctx = await setup()
     const id = await seed(ctx)
-    const result = await call(ctx, { action: 'confirm', lesson_id: id, evidence: [{ seq: [9] }] })
+    const result = await call(ctx, { action: 'confirm', lesson_id: id, evidence: [{ seq: [5] }] })
     expect(result.isError).toBeFalsy()
     expect((await ctx.memory.get(id as never))?.confirmations).toBe(1)
   })
@@ -203,19 +256,19 @@ describe('restating a lesson', () => {
   it('contradicts an existing lesson and takes it out of the digest', async () => {
     const ctx = await setup()
     const id = await seed(ctx)
-    await call(ctx, { action: 'contradict', lesson_id: id, evidence: [{ seq: [9] }] })
+    await call(ctx, { action: 'contradict', lesson_id: id, evidence: [{ seq: [5] }] })
     expect((await ctx.memory.get(id as never))?.status).toBe('retired')
   })
 
   it('rejects a restatement with no lesson id', async () => {
     const ctx = await setup()
-    const result = await call(ctx, { action: 'confirm', evidence: [{ seq: [9] }] })
+    const result = await call(ctx, { action: 'confirm', evidence: [{ seq: [5] }] })
     expect(result.isError).toBe(true)
   })
 
   it('rejects a restatement of an unknown lesson', async () => {
     const ctx = await setup()
-    const result = await call(ctx, { action: 'confirm', lesson_id: 'absent', evidence: [{ seq: [9] }] })
+    const result = await call(ctx, { action: 'confirm', lesson_id: 'absent', evidence: [{ seq: [5] }] })
     expect(result.isError).toBe(true)
   })
 })

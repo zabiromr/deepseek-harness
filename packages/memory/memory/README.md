@@ -101,7 +101,7 @@ No direct invalidation; the named consumers own any request-prefix changes.
 These limits define when the learned-memory service is incomplete on its own. They are current package constraints, not a task backlog.
 
 - **The package stores nothing.** Without a provider mounted, `ctx.memory` is absent and every consumer fails to load.
-- **Citations are checked for form, not for existence.** A citation naming events that were never appended is well-formed and accepted; the mismatch is visible only when a reader replays it.
+- **The service checks citation form; resolvability belongs to the writer.** `assertEvidence` runs in every provider and has no session to read, so it enforces ordering and ordinality only. The writing Consumer resolves each citation against the session log before calling in; a provider reached by some future writer that skips that step would store an unreplayable citation.
 - **Ranking is lexical.** Recall matches substrings and tags, so a lesson phrased differently from the query is not found. Semantic recall would be a second provider, not a change here.
 
 <a id="dev-note"></a>
