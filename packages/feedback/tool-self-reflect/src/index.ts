@@ -11,7 +11,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { GLOBAL_SCOPE, MemoryError } from '@deepseek-ai/dsh-memory'
 import type { Lesson, LessonEvidence, LessonId } from '@deepseek-ai/dsh-memory'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionSeq } from '@deepseek-ai/dsh-session'
+import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 
@@ -47,26 +48,75 @@ const DESCRIPTION =
   + 'actionable without this session for context: state the circumstance and what to do.'
 
 /**
- * Resolve the citations a call supplies, defaulting each to the calling
- * session so the model only has to name event sequence numbers.
- * @param raw - Citations as the model wrote them.
- * @param fallback - Session id of the calling agent, when there is one.
- * @returns the resolved citations.
- * @throws MemoryError `invalid-evidence` when a citation names no session and none can be inferred.
+ * Resolve the session one citation points at.
+ *
+ * The identifier arrives as model-written JSON, so it is a claim rather than a
+ * value: a model that writes `"current"`, or any session it never saw, would
+ * otherwise have that string stored as the citation's identity and the lesson
+ * could never be replayed. Only the calling session or one this harness can
+ * read resolves; anything else is refused with the name it supplied.
+ * @param requested - Session identifier as the model wrote it, when any.
+ * @param calling - Session of the calling agent, when there is one.
+ * @param lookup - Reader for a session other than the calling one.
+ * @returns the session the citation resolves to.
+ * @throws MemoryError `invalid-evidence` when no session resolves.
  */
-function resolveEvidence(
-  raw: readonly { session?: string; seq: readonly number[] }[],
-  fallback: SessionId | undefined,
-): LessonEvidence[] {
-  return raw.map((citation) => {
-    const session = citation.session ?? fallback
-    if (session === undefined) {
+function resolveCitedSession(
+  requested: string | undefined,
+  calling: Session | undefined,
+  lookup: (id: SessionId) => Session | undefined,
+): Session {
+  if (requested === undefined || requested === calling?.id) {
+    if (calling === undefined) {
       throw new MemoryError(
         'invalid-evidence',
         'evidence must name a session when the call has no owning agent session',
       )
     }
-    return { session: session as SessionId, seq: [...citation.seq] }
+    return calling
+  }
+  const found = lookup(requested as SessionId)
+  if (found === undefined) {
+    throw new MemoryError(
+      'invalid-evidence',
+      `evidence names session '${requested}', which this harness cannot read;`
+      + ' omit `session` to cite the session making the call',
+    )
+  }
+  return found
+}
+
+/**
+ * Resolve the citations a call supplies against the sessions that hold them.
+ *
+ * A citation is the lesson's only route back to what produced it, so each one
+ * is resolved rather than recorded as written: the session must resolve, and
+ * every sequence number must name an event that session actually holds. A
+ * citation that survives can be replayed; one that does not is refused here,
+ * because a lesson carrying unreplayable evidence passes the citation rule
+ * while satisfying nothing it exists to guarantee.
+ * @param raw - Citations as the model wrote them.
+ * @param calling - Session of the calling agent, when there is one.
+ * @param lookup - Reader for a session other than the calling one.
+ * @returns the resolved citations, each naming a real session and real events.
+ * @throws MemoryError `invalid-evidence` when a session or an event does not resolve.
+ */
+function resolveEvidence(
+  raw: readonly { session?: string; seq: readonly number[] }[],
+  calling: Session | undefined,
+  lookup: (id: SessionId) => Session | undefined,
+): LessonEvidence[] {
+  return raw.map((citation) => {
+    const source = resolveCitedSession(citation.session, calling, lookup)
+    for (const seq of citation.seq) {
+      if (!Number.isInteger(seq) || seq < 0 || source.eventAt(SessionSeq(seq)) === undefined) {
+        throw new MemoryError(
+          'invalid-evidence',
+          `session '${source.id}' holds no event at seq ${seq}`,
+        )
+      }
+    }
+    return { session: source.id, seq: [...citation.seq] }
   })
 }
 
@@ -185,13 +235,17 @@ export function apply(ctx: Context, config: Config): void {
           properties: {
             session: {
               type: 'string',
-              description: 'Session holding the cited events. Defaults to the current session.',
+              description:
+                'Session holding the cited events. Omit it to cite this session; pass one only when'
+                + ' citing another session by the id that session reported.',
             },
             seq: {
               type: 'array',
               required: true,
               items: { type: 'integer' },
-              description: 'Sequence numbers of the cited events, ascending.',
+              description:
+                'Sequence numbers of the cited events, ascending. Each must name an event that'
+                + ' session holds; a number no event carries is refused.',
             },
           },
         },
@@ -207,7 +261,10 @@ export function apply(ctx: Context, config: Config): void {
     },
     async execute(args, exec: ToolRunContext) {
       const session = exec.agent?.session
-      const evidence = resolveEvidence(args.evidence, session?.id)
+      // Read at call time: the store may mount after this plugin, and a
+      // composition without it can still cite the calling session.
+      const sessions = ctx.get('sessions')
+      const evidence = resolveEvidence(args.evidence, session, id => sessions?.get(id))
       if (args.action === 'record') {
         if (args.title === undefined || args.body === undefined) {
           throw new MemoryError('invalid-request', 'record requires both `title` and `body`')

@@ -51,6 +51,8 @@ Choose it when the same agent returns to the same workspace and should accumulat
 
 The tool resolves two things the model should not have to repeat. Each citation defaults to the calling agent's session, so the model names only event sequence numbers; and the lesson scope defaults to that session's working directory, so lessons land in the workspace they were learned in. A call with no owning agent must therefore state both explicitly, and is rejected when it does not.
 
+Resolution is also enforcement. A `session` the model writes is a claim, not a value: it must be the calling session or one the session store can read, and every `seq` must name an event that session holds. A citation failing either test is refused with `invalid-evidence` and nothing is stored, because a lesson whose evidence cannot be replayed satisfies the citation rule while guaranteeing none of what the rule exists for.
+
 Everything else is the seam's. Validation, scoring, and storage belong to `ctx.memory`; this package translates model arguments into a service call and renders the resulting standing back.
 
 <a id="further-exploration"></a>
@@ -97,7 +99,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 These limits define when the capture tool is a poor fit. They are current package constraints, not a task backlog.
 
-- **Citations are not verified.** The tool checks that citations are well-formed and ascending, not that the named events exist, so a fabricated citation is stored and only detected when someone reads it.
+- **A cited session must be readable now.** The tool resolves a named session through the session store, which holds the sessions this process has loaded. Citing a session that exists only on disk is refused rather than stored unresolved, so a lesson cannot carry a citation no reader can replay.
 - **Nothing prompts a capture.** The tool records when the model calls it; a session that never reflects contributes nothing, whatever it learned.
 - **No edit or delete.** A badly worded lesson can only be contradicted, not corrected or removed.
 

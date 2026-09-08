@@ -2292,11 +2292,11 @@ web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可�
         "properties": {
           "session": {
             "type": "string",
-            "description": "Session holding the cited events. Defaults to the current session."
+            "description": "Session holding the cited events. Omit it to cite this session; pass one only when citing another session by the id that session reported."
           },
           "seq": {
             "type": "array",
-            "description": "Sequence numbers of the cited events, ascending.",
+            "description": "Sequence numbers of the cited events, ascending. Each must name an event that session holds; a number no event carries is refused.",
             "items": {
               "type": "integer"
             }
