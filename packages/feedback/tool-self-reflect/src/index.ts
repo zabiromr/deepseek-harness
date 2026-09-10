@@ -87,6 +87,28 @@ function resolveCitedSession(
 }
 
 /**
+ * Sequence number of a session's first model-visible message.
+ *
+ * Every session opens with events the harness appends whatever happens —
+ * permission presets, sandbox mode, an inbox splice, a turn boundary. They are
+ * present before the session has been asked to do anything, so a citation made
+ * only of them says nothing about the work a lesson claims to have learned
+ * from. The first event that derives a message is where the session stops being
+ * setup and starts being a transcript. The vocabulary is merge-extensible, so
+ * this asks the session which of its events carry a message rather than naming
+ * the types that do.
+ * @param session - the session holding the cited events.
+ * @returns the first sequence number carrying a message, or undefined when none does.
+ */
+function firstTranscriptSeq(session: Session): number | undefined {
+  for (let seq = 0; seq < session.seq; seq += 1) {
+    const event = session.eventAt(SessionSeq(seq))
+    if (event !== undefined && session.deriveEventMessage(event) !== null) return seq
+  }
+  return undefined
+}
+
+/**
  * Resolve the citations a call supplies against the sessions that hold them.
  *
  * A citation is the lesson's only route back to what produced it, so each one
@@ -106,7 +128,9 @@ function resolveEvidence(
   calling: Session | undefined,
   lookup: (id: SessionId) => Session | undefined,
 ): LessonEvidence[] {
-  return raw.map((citation) => {
+  const resolved: LessonEvidence[] = []
+  let carriesTranscript = false
+  for (const citation of raw) {
     const source = resolveCitedSession(citation.session, calling, lookup)
     for (const seq of citation.seq) {
       if (!Number.isInteger(seq) || seq < 0 || source.eventAt(SessionSeq(seq)) === undefined) {
@@ -116,8 +140,20 @@ function resolveEvidence(
         )
       }
     }
-    return { session: source.id, seq: [...citation.seq] }
-  })
+    // A session that never carried a message has no opening to be inside of,
+    // so its events are the only evidence it can offer.
+    const opening = firstTranscriptSeq(source)
+    if (opening === undefined || citation.seq.some(seq => seq >= opening)) carriesTranscript = true
+    resolved.push({ session: source.id, seq: [...citation.seq] })
+  }
+  if (!carriesTranscript) {
+    throw new MemoryError(
+      'invalid-evidence',
+      "evidence cites only events that precede the session's first message, which every session"
+      + ' carries before it is asked to do anything; cite the work the lesson was learned from',
+    )
+  }
+  return resolved
 }
 
 /**
@@ -245,7 +281,8 @@ export function apply(ctx: Context, config: Config): void {
               items: { type: 'integer' },
               description:
                 'Sequence numbers of the cited events, ascending. Each must name an event that'
-                + ' session holds; a number no event carries is refused.',
+                + ' session holds, and at least one must come from the work itself rather than the'
+                + ' session-opening events every session carries.',
             },
           },
         },

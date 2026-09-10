@@ -38,6 +38,16 @@ The tool reads `sessions` through `ctx.get`, not through `inject`. A composition
 
 The `session` parameter tells the model to omit it for the current session and to pass only an id a session reported; the `seq` parameter states that a number no event carries is refused. A model that reads the schema has what it needs to write a citation that resolves.
 
+### Evidence must reach the transcript
+
+Requiring citations to resolve closed fabrication and revealed what sat underneath it. Across five lessons a model recorded through the real interface, every citation resolved — and two of them cited nothing but the events every session opens with: `sandbox/mode`, `approval/policy`, `session/end-seed`, `agent/inbox/spliced`, `turn/start`. One of those two had just run the test its lesson was about, then cited the boilerplate instead. The guard had made the model name real events, so it named the cheapest real events available.
+
+At least one cited event must now fall at or after the session's first model-visible message. Everything before that point is appended before the session has been asked to do anything, so a citation confined to it carries no information by construction, whichever types it names.
+
+The tool asks the session which of its events carry a message rather than listing the types that do. `SessionEventMap` is merge-extensible, so a list written here would be wrong for every plugin-owned event that later joins the vocabulary; `Session.deriveEventMessage` already answers the question for any event, core or contributed. A session that never carried a message is exempt, having no opening to be inside of.
+
+The rule was validated against the six lessons in a real store before it was written: it refuses exactly the two that evidence nothing and accepts the four that do.
+
 ## Alternatives considered
 
 - **Validate inside the memory service.** Rejected because it would put a session dependency into a Service Definition whose providers are medium adapters, inverting the seam so one Consumer's context dictates the service contract.

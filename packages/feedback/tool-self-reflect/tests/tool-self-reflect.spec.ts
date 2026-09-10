@@ -8,7 +8,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import EphemeralMemory from '@deepseek-ai/dsh-memory-ephemeral'
@@ -47,11 +47,19 @@ function agentWithSession(cwd?: string): Agent & { session: Session } {
 }
 
 /**
- * Append three completed turns to a session.
+ * Append a short real log: a turn boundary, then a user message, then two more
+ * completed turns. Seq 0 and 1 precede the session's first message, so they are
+ * the session-opening events a citation may not consist of; seq 2 onward is
+ * transcript.
  * @param session - the session to seed.
  */
 function seedTurns(session: Session): void {
-  for (const turn of [1, 2, 3]) {
+  session.append('turn/start', { turn: 1 })
+  session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+  session.append('user/message', createUserMessage({
+    content: [{ type: 'text', text: 'do the thing' }], source: { kind: 'user' },
+  }), { surfaceOp: 'append' })
+  for (const turn of [2, 3]) {
     session.append('turn/start', { turn })
     session.append('turn/end', { turn, reason: { kind: 'completed' } })
   }
@@ -133,6 +141,53 @@ describe('recording a lesson', () => {
     expect(await ctx.memory.recall({ limit: 10 })).toHaveLength(0)
   })
 
+  // The session-opening events are appended before the session is asked to do
+  // anything, so a citation made only of them resolves while evidencing
+  // nothing — the failure that survived requiring citations to resolve.
+  it('refuses evidence made only of session-opening events', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, {
+      action: 'record',
+      title: 'A lesson',
+      body: 'Body.',
+      evidence: [{ seq: [0, 1] }],
+    })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain("precede the session's first message")
+    expect(await ctx.memory.recall({ limit: 10 })).toHaveLength(0)
+  })
+
+  it('accepts evidence that reaches the transcript, even alongside opening events', async () => {
+    const ctx = await setup()
+    await call(ctx, {
+      action: 'record',
+      title: 'A lesson',
+      body: 'Body.',
+      evidence: [{ seq: [0, 1, 2] }],
+    })
+    expect(await ctx.memory.recall({ limit: 10 })).toHaveLength(1)
+  })
+
+  // A session that never carried a message — a run that ended before its first
+  // turn produced one — has no opening to be inside of, so the rule above has
+  // nothing to measure against and its events are the only evidence it offers.
+  it('accepts a citation into a session that never carried a message', async () => {
+    const ctx = await setup()
+    await ctx.plugin(SessionStore)
+    const bare = ctx.sessions.create(SessionId('bare-1'))
+    bare.append('turn/start', { turn: 1 })
+
+    await call(ctx, {
+      action: 'record',
+      title: 'A lesson',
+      body: 'Body.',
+      evidence: [{ session: 'bare-1', seq: [0] }],
+    })
+
+    const stored = await ctx.memory.recall({ limit: 10 })
+    expect(stored[0]?.evidence[0]?.session).toBe('bare-1')
+  })
+
   it('refuses a citation whose seq names no event in the session', async () => {
     const ctx = await setup()
     const result = await call(ctx, {
@@ -172,7 +227,7 @@ describe('recording a lesson', () => {
 
   it('rejects a capture missing its title or body', async () => {
     const ctx = await setup()
-    const result = await call(ctx, { action: 'record', body: 'B', evidence: [{ seq: [1] }] })
+    const result = await call(ctx, { action: 'record', body: 'B', evidence: [{ seq: [3] }] })
     expect(result.isError).toBe(true)
   })
 
@@ -182,14 +237,14 @@ describe('recording a lesson', () => {
       action: 'record',
       title: 'A',
       body: 'x'.repeat(201),
-      evidence: [{ seq: [1] }],
+      evidence: [{ seq: [3] }],
     })
     expect(result.isError).toBe(true)
   })
 
   it('accepts an explicit global scope when the deployment allows it', async () => {
     const ctx = await setup()
-    await call(ctx, { action: 'record', title: 'A', body: 'B', scope: '*', evidence: [{ seq: [1] }] })
+    await call(ctx, { action: 'record', title: 'A', body: 'B', scope: '*', evidence: [{ seq: [3] }] })
     expect((await ctx.memory.recall({ limit: 10 }))[0]?.scope).toBe('*')
   })
 
@@ -200,7 +255,7 @@ describe('recording a lesson', () => {
       title: 'A',
       body: 'B',
       scope: '*',
-      evidence: [{ seq: [1] }],
+      evidence: [{ seq: [3] }],
     })
     expect(result.isError).toBe(true)
   })
@@ -211,7 +266,7 @@ describe('recording a lesson', () => {
       action: 'record',
       title: 'A',
       body: 'B',
-      evidence: [{ seq: [1] }],
+      evidence: [{ seq: [3] }],
     }, agentWithSession())
     expect(result.isError).toBe(true)
   })
@@ -223,7 +278,7 @@ describe('recording a lesson', () => {
       title: 'A',
       body: 'B',
       scope: '/repo',
-      evidence: [{ seq: [1] }],
+      evidence: [{ seq: [3] }],
     }, null)
     expect(result.isError).toBe(true)
   })
@@ -280,7 +335,7 @@ describe('what the model sees', () => {
       action: 'record',
       title: 'Run the formatter',
       body: 'B',
-      evidence: [{ seq: [1] }],
+      evidence: [{ seq: [3] }],
     })
     expect(text(result)).toContain('Run the formatter')
     expect(text(result)).toContain('0 confirmed')
