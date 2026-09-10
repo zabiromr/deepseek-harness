@@ -53,6 +53,8 @@ The tool resolves two things the model should not have to repeat. Each citation 
 
 Resolution is also enforcement. A `session` the model writes is a claim, not a value: it must be the calling session or one the session store can read, and every `seq` must name an event that session holds. A citation failing either test is refused with `invalid-evidence` and nothing is stored, because a lesson whose evidence cannot be replayed satisfies the citation rule while guaranteeing none of what the rule exists for.
 
+Evidence must also reach the transcript. Every session opens with events the harness appends whatever happens, so a citation made only of them resolves while evidencing nothing. At least one cited event must fall at or after the session's first model-visible message, which the tool asks the session to identify rather than naming the event types that qualify — the vocabulary is merge-extensible, and a plugin's events are as citable as the core's. A session that never carried a message is exempt: it has no opening to be inside of.
+
 Everything else is the seam's. Validation, scoring, and storage belong to `ctx.memory`; this package translates model arguments into a service call and renders the resulting standing back.
 
 <a id="further-exploration"></a>

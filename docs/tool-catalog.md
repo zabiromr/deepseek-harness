@@ -2288,7 +2288,7 @@ Record a lesson learned from this session so later sessions inherit it, or resta
           },
           "seq": {
             "type": "array",
-            "description": "Sequence numbers of the cited events, ascending. Each must name an event that session holds; a number no event carries is refused.",
+            "description": "Sequence numbers of the cited events, ascending. Each must name an event that session holds, and at least one must come from the work itself rather than the session-opening events every session carries.",
             "items": {
               "type": "integer"
             }
