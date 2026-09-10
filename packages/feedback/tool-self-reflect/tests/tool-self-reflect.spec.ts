@@ -8,7 +8,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import EphemeralMemory from '@deepseek-ai/dsh-memory-ephemeral'
@@ -59,6 +59,15 @@ function seedTurns(session: Session): void {
   session.append('user/message', createUserMessage({
     content: [{ type: 'text', text: 'do the thing' }], source: { kind: 'user' },
   }), { surfaceOp: 'append' })
+  session.append('assistant/message', {
+    turn: 1,
+    step: 1,
+    message: createMessage({
+      role: 'assistant',
+      content: [{ type: 'text', text: 'did the thing' }],
+      source: { kind: 'model', provider: 'mock', model: 'mock' },
+    }),
+  }, { surfaceOp: 'append' })
   for (const turn of [2, 3]) {
     session.append('turn/start', { turn })
     session.append('turn/end', { turn, reason: { kind: 'completed' } })
@@ -144,7 +153,7 @@ describe('recording a lesson', () => {
   // The session-opening events are appended before the session is asked to do
   // anything, so a citation made only of them resolves while evidencing
   // nothing — the failure that survived requiring citations to resolve.
-  it('refuses evidence made only of session-opening events', async () => {
+  it('refuses evidence naming no event the turn produced', async () => {
     const ctx = await setup()
     const result = await call(ctx, {
       action: 'record',
@@ -153,39 +162,53 @@ describe('recording a lesson', () => {
       evidence: [{ seq: [0, 1] }],
     })
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain("precede the session's first message")
+    expect(text(result)).toContain('names no event this turn produced by acting')
     expect(await ctx.memory.recall({ limit: 10 })).toHaveLength(0)
   })
 
-  it('accepts evidence that reaches the transcript, even alongside opening events', async () => {
+  // The request that asked for the work is not the work: a citation that names
+  // only it resolves and reaches the transcript while evidencing nothing, which
+  // is how twelve of eighteen lessons in a real store came to cite the prompt.
+  it('refuses evidence naming only the request that asked for the work', async () => {
     const ctx = await setup()
-    await call(ctx, {
+    const result = await call(ctx, {
       action: 'record',
       title: 'A lesson',
       body: 'Body.',
       evidence: [{ seq: [0, 1, 2] }],
     })
+    expect(result.isError).toBe(true)
+    expect(await ctx.memory.recall({ limit: 10 })).toHaveLength(0)
+  })
+
+  it('accepts evidence naming what the turn produced, alongside anything else', async () => {
+    const ctx = await setup()
+    await call(ctx, {
+      action: 'record',
+      title: 'A lesson',
+      body: 'Body.',
+      evidence: [{ seq: [0, 2, 3] }],
+    })
     expect(await ctx.memory.recall({ limit: 10 })).toHaveLength(1)
   })
 
-  // A session that never carried a message — a run that ended before its first
-  // turn produced one — has no opening to be inside of, so the rule above has
-  // nothing to measure against and its events are the only evidence it offers.
-  it('accepts a citation into a session that never carried a message', async () => {
+  // A session that only opened has nothing a turn produced, so it can evidence
+  // nothing — the citation resolves and is still refused.
+  it('refuses a citation into a session that produced no work', async () => {
     const ctx = await setup()
     await ctx.plugin(SessionStore)
     const bare = ctx.sessions.create(SessionId('bare-1'))
     bare.append('turn/start', { turn: 1 })
 
-    await call(ctx, {
+    const result = await call(ctx, {
       action: 'record',
       title: 'A lesson',
       body: 'Body.',
       evidence: [{ session: 'bare-1', seq: [0] }],
     })
 
-    const stored = await ctx.memory.recall({ limit: 10 })
-    expect(stored[0]?.evidence[0]?.session).toBe('bare-1')
+    expect(result.isError).toBe(true)
+    expect(await ctx.memory.recall({ limit: 10 })).toHaveLength(0)
   })
 
   it('refuses a citation whose seq names no event in the session', async () => {
@@ -303,7 +326,7 @@ describe('restating a lesson', () => {
   it('confirms an existing lesson', async () => {
     const ctx = await setup()
     const id = await seed(ctx)
-    const result = await call(ctx, { action: 'confirm', lesson_id: id, evidence: [{ seq: [5] }] })
+    const result = await call(ctx, { action: 'confirm', lesson_id: id, evidence: [{ seq: [3] }] })
     expect(result.isError).toBeFalsy()
     expect((await ctx.memory.get(id as never))?.confirmations).toBe(1)
   })
@@ -311,19 +334,19 @@ describe('restating a lesson', () => {
   it('contradicts an existing lesson and takes it out of the digest', async () => {
     const ctx = await setup()
     const id = await seed(ctx)
-    await call(ctx, { action: 'contradict', lesson_id: id, evidence: [{ seq: [5] }] })
+    await call(ctx, { action: 'contradict', lesson_id: id, evidence: [{ seq: [3] }] })
     expect((await ctx.memory.get(id as never))?.status).toBe('retired')
   })
 
   it('rejects a restatement with no lesson id', async () => {
     const ctx = await setup()
-    const result = await call(ctx, { action: 'confirm', evidence: [{ seq: [5] }] })
+    const result = await call(ctx, { action: 'confirm', evidence: [{ seq: [3] }] })
     expect(result.isError).toBe(true)
   })
 
   it('rejects a restatement of an unknown lesson', async () => {
     const ctx = await setup()
-    const result = await call(ctx, { action: 'confirm', lesson_id: 'absent', evidence: [{ seq: [5] }] })
+    const result = await call(ctx, { action: 'confirm', lesson_id: 'absent', evidence: [{ seq: [3] }] })
     expect(result.isError).toBe(true)
   })
 })
