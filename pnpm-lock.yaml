@@ -15,6 +15,12 @@ importers:
 
   .:
     devDependencies:
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:packages/core/session
+      '@deepseek-ai/dsh-session-persistence-jsonl':
+        specifier: workspace:^
+        version: link:packages/session/session-persistence-jsonl
       '@deepseek-ai/dsh-tool-session-query':
         specifier: workspace:^
         version: link:packages/session-query/tool-session-query
