@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-08-citations-resolve-before-they-are-stored.md
-2026-09-08-citations-resolve-before-they-are-stored.md: 83081d36ef80f9d5ad5f8b0db423d44d8b80b556
-2026-09-08-citations-resolve-before-they-are-stored.zh.md: 37d6d0b1eb4922244e0680eb0d1146176c13d001
+2026-09-08-citations-resolve-before-they-are-stored.md: 67ac200a89bafaf2f3ecaf2204b7c191646a2946
+2026-09-08-citations-resolve-before-they-are-stored.zh.md: 533efe0ef8f1d3bdbace4af72e5c71195c960bc0

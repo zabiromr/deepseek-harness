@@ -38,15 +38,15 @@ The tool reads `sessions` through `ctx.get`, not through `inject`. A composition
 
 The `session` parameter tells the model to omit it for the current session and to pass only an id a session reported; the `seq` parameter states that a number no event carries is refused. A model that reads the schema has what it needs to write a citation that resolves.
 
-### Evidence must reach the transcript
+### Evidence must name work
 
-Requiring citations to resolve closed fabrication and revealed what sat underneath it. Across five lessons a model recorded through the real interface, every citation resolved — and two of them cited nothing but the events every session opens with: `sandbox/mode`, `approval/policy`, `session/end-seed`, `agent/inbox/spliced`, `turn/start`. One of those two had just run the test its lesson was about, then cited the boilerplate instead. The guard had made the model name real events, so it named the cheapest real events available.
+Requiring citations to resolve closed fabrication and revealed what sat underneath it, and the first repair for that — requiring a cited event at or after the session's first model-visible message — was measured in production and found insufficient. Of eighteen lessons a model recorded through the real interface, **twelve cited nothing but session bookkeeping and the message that asked for the work**: `step/start`, `turn/start`, `agent/inbox/spliced`, `session/title`, `request/header`, and `user/message`. Not one named a tool call, though every one of those sessions read files to write its body. `user/message` *is* the first model-visible message, so citing the request satisfied the threshold and carried the bookkeeping along.
 
-At least one cited event must now fall at or after the session's first model-visible message. Everything before that point is appended before the session has been asked to do anything, so a citation confined to it carries no information by construction, whichever types it names.
+An explicit instruction to cite tool calls, placed in the prompt immediately before the call, was tried on eight of those twelve. It changed nothing: zero of eight cited a tool call. A prompt is not a check.
 
-The tool asks the session which of its events carry a message rather than listing the types that do. `SessionEventMap` is merge-extensible, so a list written here would be wrong for every plugin-owned event that later joins the vocabulary; `Session.deriveEventMessage` already answers the question for any event, core or contributed. A session that never carried a message is exempt, having no opening to be inside of.
+At least one cited event must now be an `assistant/message`, a `tool/call`, or a `tool/result` — what the model said, what it called, and what the call answered. This subsumes the threshold rule, since none of the three can precede the first message.
 
-The rule was validated against the six lessons in a real store before it was written: it refuses exactly the two that evidence nothing and accepts the four that do.
+The set is small and closed rather than derived. Two structural classifiers were measured and rejected before it: "the event derives a message" excludes `tool/call` in 91 of 91 cases, because the call rides inside the assistant message; and the derived message's `role` cannot separate work from request, because `tool/result` derives role `user`, exactly as `user/message` does. A plugin-owned event is not accepted alone, because this cannot know what a contributed type means; a lesson resting on one cites it beside the call that produced it.
 
 ## Alternatives considered
 

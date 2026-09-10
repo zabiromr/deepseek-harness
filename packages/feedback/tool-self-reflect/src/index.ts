@@ -87,26 +87,24 @@ function resolveCitedSession(
 }
 
 /**
- * Sequence number of a session's first model-visible message.
+ * Event types a turn produces by acting.
  *
- * Every session opens with events the harness appends whatever happens —
- * permission presets, sandbox mode, an inbox splice, a turn boundary. They are
- * present before the session has been asked to do anything, so a citation made
- * only of them says nothing about the work a lesson claims to have learned
- * from. The first event that derives a message is where the session stops being
- * setup and starts being a transcript. The vocabulary is merge-extensible, so
- * this asks the session which of its events carry a message rather than naming
- * the types that do.
- * @param session - the session holding the cited events.
- * @returns the first sequence number carrying a message, or undefined when none does.
+ * A session accumulates events whatever happens: it is configured, a turn
+ * opens, a step starts, a title is requested. Those exist before and beside
+ * any work, so a citation assembled from them resolves while evidencing
+ * nothing — as does one naming only the message that asked for the work.
+ * These three are what a turn adds by doing something: what the model said,
+ * what it called, and what the call answered.
+ *
+ * The set is small and closed on purpose. A plugin-owned event is not accepted
+ * on its own, because this cannot know what a contributed type means; a lesson
+ * resting on one cites it beside the call that produced it.
  */
-function firstTranscriptSeq(session: Session): number | undefined {
-  for (let seq = 0; seq < session.seq; seq += 1) {
-    const event = session.eventAt(SessionSeq(seq))
-    if (event !== undefined && session.deriveEventMessage(event) !== null) return seq
-  }
-  return undefined
-}
+const EVIDENTIAL_TYPES: ReadonlySet<string> = new Set([
+  'assistant/message',
+  'tool/call',
+  'tool/result',
+])
 
 /**
  * Resolve the citations a call supplies against the sessions that hold them.
@@ -129,7 +127,7 @@ function resolveEvidence(
   lookup: (id: SessionId) => Session | undefined,
 ): LessonEvidence[] {
   const resolved: LessonEvidence[] = []
-  let carriesTranscript = false
+  let carriesWork = false
   for (const citation of raw) {
     const source = resolveCitedSession(citation.session, calling, lookup)
     for (const seq of citation.seq) {
@@ -140,17 +138,17 @@ function resolveEvidence(
         )
       }
     }
-    // A session that never carried a message has no opening to be inside of,
-    // so its events are the only evidence it can offer.
-    const opening = firstTranscriptSeq(source)
-    if (opening === undefined || citation.seq.some(seq => seq >= opening)) carriesTranscript = true
+    for (const seq of citation.seq) {
+      const event = source.eventAt(SessionSeq(seq))
+      if (event !== undefined && EVIDENTIAL_TYPES.has(event.type)) carriesWork = true
+    }
     resolved.push({ session: source.id, seq: [...citation.seq] })
   }
-  if (!carriesTranscript) {
+  if (!carriesWork) {
     throw new MemoryError(
       'invalid-evidence',
-      "evidence cites only events that precede the session's first message, which every session"
-      + ' carries before it is asked to do anything; cite the work the lesson was learned from',
+      'evidence names no event this turn produced by acting; cite an assistant message, a tool'
+      + ' call, or a tool result, not only the request and the session-opening events',
     )
   }
   return resolved
@@ -281,8 +279,8 @@ export function apply(ctx: Context, config: Config): void {
               items: { type: 'integer' },
               description:
                 'Sequence numbers of the cited events, ascending. Each must name an event that'
-                + ' session holds, and at least one must come from the work itself rather than the'
-                + ' session-opening events every session carries.',
+                + ' session holds, and at least one must be an assistant message, a tool call, or a'
+                + ' tool result: citing only the request and the session-opening events is refused.',
             },
           },
         },
