@@ -48,6 +48,14 @@ At least one cited event must now be an `assistant/message`, a `tool/call`, or a
 
 The set is small and closed rather than derived. Two structural classifiers were measured and rejected before it: "the event derives a message" excludes `tool/call` in 91 of 91 cases, because the call rides inside the assistant message; and the derived message's `role` cannot separate work from request, because `tool/result` derives role `user`, exactly as `user/message` does. A plugin-owned event is not accepted alone, because this cannot know what a contributed type means; a lesson resting on one cites it beside the call that produced it.
 
+### Where the rules stop, and what replaces them
+
+Each rule closed one path and opened the next cheapest. A fabricated session became boilerplate events; boilerplate became the request that asked for the work; the request became a sweep — one lesson cites sequence numbers 1 through 60, another every tenth number to 100. Both satisfy every rule above while selecting nothing.
+
+No further rule on the citation fixes that. Resolvability, event type, and position are properties of the numbers; whether the events *support the claim* requires reading them and judging relevance, which is a reader's work and not a validator's. A width cap would refuse a sweep and yield an arbitrary citation of the permitted width, which no check can tell from a chosen one.
+
+So the enforced set is closed at three structural properties — a citation resolves, names work, and can be replayed — and quality moves to `scripts/audit-memory-citations.ts`, which reads a store against the logs it points at and reports what each lesson actually cites, flagging contiguous and evenly strided sweeps. It found all three in seconds. An audit can weigh what a validator cannot, because it does not have to decide at write time and does not need the writer's cooperation.
+
 ## Alternatives considered
 
 - **Validate inside the memory service.** Rejected because it would put a session dependency into a Service Definition whose providers are medium adapters, inverting the seam so one Consumer's context dictates the service contract.
