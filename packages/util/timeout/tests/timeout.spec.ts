@@ -276,6 +276,17 @@ describe('idleWatchdog', () => {
     watchdog[Symbol.dispose]()
   })
 
+  it('does not arm a timer when pulse() is called outside an outstanding next()', async () => {
+    vi.useFakeTimers()
+    const watchdog = idleWatchdog(undefined, 100, 'LLM_STREAM_IDLE_TIMEOUT')
+    // Call pulse() before any next() — outstanding is false, so no timer arms
+    watchdog.pulse()
+    await vi.advanceTimersByTimeAsync(200)
+    expect(watchdog.signal.aborted).toBe(false)
+    expect(timeoutOf(watchdog.signal, 'LLM_STREAM_IDLE_TIMEOUT')).toBeUndefined()
+    watchdog[Symbol.dispose]()
+  })
+
   it('rejects invalid bounds and concurrent iterator demand', async () => {
     expect(() => idleWatchdog(undefined, 0, 'IDLE')).toThrow(/positive finite/)
     expect(() => idleWatchdog(undefined, Number.NaN, 'IDLE')).toThrow(/positive finite/)
