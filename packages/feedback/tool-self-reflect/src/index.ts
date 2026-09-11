@@ -183,6 +183,33 @@ function resolveScope(
   return scope
 }
 
+/**
+ * Refuse a restatement of a lesson this session was never shown.
+ *
+ * `confirm` and `contradict` both claim an outcome from having acted on a
+ * lesson: it proved right again, or it misled. Neither claim is available to a
+ * session the lesson never reached. Without the check a stray call retires a
+ * sound lesson on evidence that resolves and names work while saying nothing
+ * about that lesson — which is how two well-cited lessons were retired in one
+ * afternoon by a model asked to correct a third.
+ *
+ * A lesson reaches a session two ways, and both count: the digest renders it
+ * into the system prompt, and the recall tool returns it into the transcript.
+ * @param session - Session of the calling agent, when there is one.
+ * @param title - Title of the lesson being restated.
+ * @throws MemoryError `invalid-request` when the lesson never appeared.
+ */
+function assertLessonWasShown(session: Session | undefined, title: string): void {
+  if (session === undefined) return
+  if ((session.requestHeader()?.system ?? '').includes(title)) return
+  if (JSON.stringify(session.deriveMessages()).includes(title)) return
+  throw new MemoryError(
+    'invalid-request',
+    `this session was never shown the lesson '${title}', so it cannot report how it fared;`
+    + ' recall it with `tool-knowledge-base` first, or restate it from a session that carried it',
+  )
+}
+
 /** Canonical result of one capture or restatement. */
 const OUTPUT_SCHEMA = {
   type: 'object',
@@ -329,6 +356,11 @@ export function apply(ctx: Context, config: Config): void {
         throw new MemoryError('invalid-request', `${args.action} requires \`lesson_id\``)
       }
       const id = args.lesson_id as LessonId
+      const stored = await ctx.memory.get(id)
+      if (stored === undefined) {
+        throw new MemoryError('not-found', `no lesson with id '${args.lesson_id}'`)
+      }
+      assertLessonWasShown(session, stored.title)
       const lesson = args.action === 'confirm'
         ? await ctx.memory.confirm(id, evidence)
         : await ctx.memory.contradict(id, evidence)
