@@ -55,6 +55,8 @@ Resolution is also enforcement. A `session` the model writes is a claim, not a v
 
 Evidence must also name work. A session accumulates events whatever happens — it is configured, a turn opens, a step starts — and the message that asked for the work is not the work either. At least one cited event must therefore be an `assistant/message`, a `tool/call`, or a `tool/result`: what the model said, what it called, and what the call answered. The set is small and closed on purpose; a plugin-owned event is not accepted alone, because the tool cannot know what a contributed type means, so a lesson resting on one cites it beside the call that produced it.
 
+The schema names where those sequence numbers come from: `session_event_search`, filtered by `event_types` to the calls and results a citation needs. Without that, models reach for the session log files instead — a concatenated Zstandard container packing chunk runs into single rows, which costs many steps and resolves to the wrong numbers when read naively.
+
 Everything else is the seam's. Validation, scoring, and storage belong to `ctx.memory`; this package translates model arguments into a service call and renders the resulting standing back.
 
 <a id="further-exploration"></a>

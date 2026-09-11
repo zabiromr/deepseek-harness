@@ -2296,7 +2296,7 @@ web_search 和 web_fetch 将提供方选择置于 ctx.web 之后，使模型可�
           },
           "seq": {
             "type": "array",
-            "description": "Sequence numbers of the cited events, ascending. Each must name an event that session holds, and at least one must be an assistant message, a tool call, or a tool result: citing only the request and the session-opening events is refused.",
+            "description": "Sequence numbers of the cited events, ascending. Each must name an event that session holds, and at least one must be an assistant message, a tool call, or a tool result: citing only the request and the session-opening events is refused. Find them with `session_event_search`, omitting `session_id` for this session and passing `event_types` of `tool/call` and `tool/result`; the session log files are a compressed container and reading them directly is slower and error-prone.",
             "items": {
               "type": "integer"
             }
