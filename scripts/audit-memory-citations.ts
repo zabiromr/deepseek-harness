@@ -33,7 +33,10 @@ const BLANKET_CITATION = 8
 /** One lesson as stored, reduced to what an audit needs. */
 interface StoredLesson {
   readonly title: string
+  readonly body: string
   readonly status: string
+  readonly confirmations: number
+  readonly contradictions: number
   readonly evidence: readonly { readonly session: string; readonly seq: readonly number[] }[]
 }
 
@@ -41,10 +44,14 @@ interface StoredLesson {
 interface Finding {
   readonly title: string
   readonly status: string
+  readonly confirmations: number
+  readonly contradictions: number
   readonly cited: number
   readonly work: number
   readonly unresolved: number
   readonly blanket: boolean
+  /** Same body text as another stored lesson: one of them is redundant. */
+  readonly duplicated: boolean
 }
 
 /**
@@ -122,7 +129,14 @@ export function auditCitations(home: string): Finding[] {
     return found
   }
 
-  return readdirSync(lessonDir).filter(name => name.endsWith('.json')).map((name) => {
+  const names = readdirSync(lessonDir).filter(name => name.endsWith('.json'))
+  const bodies = new Map<string, number>()
+  for (const name of names) {
+    const { record } = JSON.parse(readFileSync(join(lessonDir, name), 'utf8')) as { record: StoredLesson }
+    bodies.set(record.body, (bodies.get(record.body) ?? 0) + 1)
+  }
+
+  return names.map((name) => {
     const stored = JSON.parse(readFileSync(join(lessonDir, name), 'utf8')) as { record: StoredLesson }
     const lesson = stored.record
     let cited = 0
@@ -139,7 +153,17 @@ export function auditCitations(home: string): Finding[] {
         if (WORK_TYPES.has(event.type)) work += 1
       }
     }
-    return { title: lesson.title, status: lesson.status, cited, work, unresolved, blanket }
+    return {
+      title: lesson.title,
+      status: lesson.status,
+      confirmations: lesson.confirmations,
+      contradictions: lesson.contradictions,
+      cited,
+      work,
+      unresolved,
+      blanket,
+      duplicated: (bodies.get(lesson.body) ?? 0) > 1,
+    }
   })
 }
 
@@ -155,14 +179,32 @@ export function reportCitations(home: string): number {
     return 0
   }
   console.log(`audit-memory-citations: ${findings.length} lesson(s) under ${home}\n`)
-  console.log('work  cited  unres  title')
+  console.log('status    +/-   work  cited  unres  title')
   for (const f of findings) {
-    const mark = f.unresolved > 0 || f.work === 0 ? '!' : f.blanket ? '~' : ' '
-    console.log(`${String(f.work).padStart(4)}${String(f.cited).padStart(7)}${String(f.unresolved).padStart(7)}  ${mark} ${f.title.slice(0, 60)}`)
+    const mark = f.unresolved > 0 || f.work === 0 ? '!' : f.blanket ? '~' : f.duplicated ? '=' : ' '
+    const standing = `${f.confirmations}/${f.contradictions}`
+    console.log(
+      `${f.status.padEnd(9)}${standing.padStart(4)}${String(f.work).padStart(7)}`
+      + `${String(f.cited).padStart(7)}${String(f.unresolved).padStart(7)}  ${mark} ${f.title.slice(0, 52)}`,
+    )
   }
   const broken = findings.filter(f => f.unresolved > 0 || f.work === 0)
   const swept = findings.filter(f => f.blanket && f.unresolved === 0 && f.work > 0)
+  // A retired lesson leaves the digest without saying so anywhere a reader
+  // looks, so a contradiction that retired a sound lesson stays invisible
+  // until someone opens the store. Both are reported rather than judged.
+  const retired = findings.filter(f => f.status !== 'active')
+  const duplicated = findings.filter(f => f.duplicated)
   console.log('')
+  if (retired.length > 0) {
+    console.log(`- ${retired.length} lesson(s) no longer reach the digest:`)
+    for (const f of retired) {
+      console.log(`    ${f.status} after ${f.contradictions} contradiction(s): ${f.title.slice(0, 56)}`)
+    }
+  }
+  if (duplicated.length > 0) {
+    console.log(`= ${duplicated.length} lesson(s) share a body with another: the digest pays for each copy.`)
+  }
   if (swept.length > 0) {
     console.log(`~ ${swept.length} lesson(s) cite a contiguous or strided sweep: the rules pass, the citation selects nothing.`)
   }

@@ -64,7 +64,7 @@ function seedTurns(session: Session): void {
     step: 1,
     message: createMessage({
       role: 'assistant',
-      content: [{ type: 'text', text: 'did the thing' }],
+      content: [{ type: 'text', text: 'recall returned **Run the formatter first**' }],
       source: { kind: 'model', provider: 'mock', model: 'mock' },
     }),
   }, { surfaceOp: 'append' })
@@ -313,10 +313,10 @@ describe('restating a lesson', () => {
    * @param ctx - The mounted context.
    * @returns the stored lesson id.
    */
-  async function seed(ctx: Context): Promise<string> {
+  async function seed(ctx: Context, title = 'Run the formatter first'): Promise<string> {
     const lesson = await ctx.memory.record({
       scope: '/repo',
-      title: 'A',
+      title,
       body: 'B',
       evidence: [{ session: SessionId('s1'), seq: [1] }],
     })
@@ -342,6 +342,56 @@ describe('restating a lesson', () => {
     const ctx = await setup()
     const result = await call(ctx, { action: 'confirm', evidence: [{ seq: [3] }] })
     expect(result.isError).toBe(true)
+  })
+
+  // `confirm` and `contradict` both claim an outcome from having acted on a
+  // lesson. A session the lesson never reached has no such outcome to report,
+  // and without the check a stray call retires a sound lesson on evidence that
+  // resolves and names work while saying nothing about that lesson.
+  it('refuses to restate a lesson this session was never shown', async () => {
+    const ctx = await setup()
+    const id = await seed(ctx, 'A lesson nobody showed this session')
+
+    const result = await call(ctx, { action: 'contradict', lesson_id: id, evidence: [{ seq: [3] }] })
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('never shown the lesson')
+    expect((await ctx.memory.get(id as never))?.contradictions).toBe(0)
+  })
+
+  // The digest is the other way a lesson reaches a session: rendered into the
+  // system prompt rather than returned into the transcript.
+  it('accepts a restatement of a lesson the digest carried', async () => {
+    const ctx = await setup()
+    const title = 'A lesson only the digest carried'
+    const id = await seed(ctx, title)
+    const agent = agentWithSession('/repo')
+    agent.session.append('request/header', {
+      header: { config: { provider: 'fixture', model: 'fixture-model' }, system: `- **${title}** — body` },
+      reason: 'initial',
+    })
+
+    await call(ctx, { action: 'confirm', lesson_id: id, evidence: [{ seq: [3] }] }, agent)
+
+    expect((await ctx.memory.get(id as never))?.confirmations).toBe(1)
+  })
+
+  // An agentless call has no session to have been shown anything, so the rule
+  // has nothing to check; its citation must already name a readable session.
+  it('restates without a calling session when the citation names one', async () => {
+    const ctx = await setup()
+    await ctx.plugin(SessionStore)
+    const other = ctx.sessions.create(SessionId('other-2'))
+    seedTurns(other)
+    const id = await seed(ctx)
+
+    await call(ctx, {
+      action: 'confirm',
+      lesson_id: id,
+      evidence: [{ session: 'other-2', seq: [3] }],
+    }, null)
+
+    expect((await ctx.memory.get(id as never))?.confirmations).toBe(1)
   })
 
   it('rejects a restatement of an unknown lesson', async () => {

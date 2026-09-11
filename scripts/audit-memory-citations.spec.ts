@@ -58,11 +58,37 @@ async function scratchHome(
 
   const lessons = join(home, 'storages', 'memory', 'lessons')
   mkdirSync(lessons, { recursive: true })
-  writeFileSync(join(lessons, 'a.json'), JSON.stringify({
-    version: 1,
-    record: { id: 'a', title: 'A lesson', status: 'active', evidence },
-  }))
+  writeLesson(lessons, 'a', 'A lesson', evidence)
   return home
+}
+
+/**
+ * Write one lesson file.
+ * @param dir - the lessons directory.
+ * @param id - lesson id and file name.
+ * @param title - lesson title.
+ * @param evidence - citations to store.
+ * @param extra - standing and body overrides.
+ */
+function writeLesson(
+  dir: string,
+  id: string,
+  title: string,
+  evidence: { session: string; seq: number[] }[],
+  extra: { status?: string; contradictions?: number; confirmations?: number; body?: string } = {},
+): void {
+  writeFileSync(join(dir, `${id}.json`), JSON.stringify({
+    version: 1,
+    record: {
+      id,
+      title,
+      body: extra.body ?? `body of ${id}`,
+      status: extra.status ?? 'active',
+      confirmations: extra.confirmations ?? 0,
+      contradictions: extra.contradictions ?? 0,
+      evidence,
+    },
+  }))
 }
 
 describe('citation audit', () => {
@@ -117,6 +143,23 @@ describe('citation audit', () => {
     ]
     const home = await scratchHome([{ session: SESSION, seq: [0, 3, 7] }], events)
     expect(auditCitations(home)[0]).toMatchObject({ cited: 3, unresolved: 0, work: 2 })
+  })
+
+  // A retired lesson stops reaching the digest silently, and a duplicate body
+  // is paid for twice; neither shows up in a citation count, so the audit
+  // reports both rather than leaving them to be noticed by accident.
+  it('reports standing and duplicate bodies', async () => {
+    const events = [event(0, 'turn/start'), event(1, 'tool/call'), event(2, 'tool/result')]
+    const home = await scratchHome([{ session: SESSION, seq: [1, 2] }], events)
+    const lessons = join(home, 'storages', 'memory', 'lessons')
+    writeLesson(lessons, 'b', 'Retired one', [{ session: SESSION, seq: [1] }],
+      { status: 'retired', contradictions: 2, body: 'shared body' })
+    writeLesson(lessons, 'c', 'Twin one', [{ session: SESSION, seq: [2] }], { body: 'shared body' })
+
+    const byTitle = new Map(auditCitations(home).map(f => [f.title, f]))
+    expect(byTitle.get('Retired one')).toMatchObject({ status: 'retired', contradictions: 2, duplicated: true })
+    expect(byTitle.get('Twin one')).toMatchObject({ status: 'active', duplicated: true })
+    expect(byTitle.get('A lesson')?.duplicated).toBe(false)
   })
 
   it('returns nothing for a home with no store', () => {
