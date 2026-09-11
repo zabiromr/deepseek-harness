@@ -134,7 +134,8 @@ function resolveEvidence(
       if (!Number.isInteger(seq) || seq < 0 || source.eventAt(SessionSeq(seq)) === undefined) {
         throw new MemoryError(
           'invalid-evidence',
-          `session '${source.id}' holds no event at seq ${seq}`,
+          `session '${source.id}' holds no event at seq ${seq};`
+          + ' list real ones with `session_event_search` rather than guessing',
         )
       }
     }
@@ -148,7 +149,9 @@ function resolveEvidence(
     throw new MemoryError(
       'invalid-evidence',
       'evidence names no event this turn produced by acting; cite an assistant message, a tool'
-      + ' call, or a tool result, not only the request and the session-opening events',
+      + ' call, or a tool result, not only the request and the session-opening events. Find one'
+      + ' with `session_event_search`: omit `session_id`, and pass `event_types` of `tool/call`'
+      + ' and `tool/result`.',
     )
   }
   return resolved
