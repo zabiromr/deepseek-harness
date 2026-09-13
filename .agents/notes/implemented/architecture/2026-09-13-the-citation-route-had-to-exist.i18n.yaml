@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-13-the-citation-route-had-to-exist.md
+2026-09-13-the-citation-route-had-to-exist.md: 0974a1fe27c72febd20bf59f3084bc39d4a8ea42
+2026-09-13-the-citation-route-had-to-exist.zh.md: 7be4e329ce206dc87ec7ac7a2d5b3c6cd6fa9647
