@@ -26,7 +26,9 @@ function lesson(overrides: Partial<Lesson> = {}): Lesson {
 
 describe('renderLesson', () => {
   it('renders title and body on one line', () => {
-    expect(renderLesson(lesson())).toBe('- **Run the formatter** — The repository formatter rejects tabs.')
+    // The identifier is part of the line: restating a lesson needs it, and the
+    // digest is the only place a model sees the lesson at all.
+    expect(renderLesson(lesson())).toBe('- **Run the formatter** (a) — The repository formatter rejects tabs.')
   })
 
   it('includes tags when the lesson carries them', () => {
@@ -53,7 +55,7 @@ describe('renderDigest', () => {
 
   it('drops a lesson that does not fit whole rather than clipping it', () => {
     const long = lesson({ title: 'x'.repeat(400) })
-    const text = renderDigest([lesson(), long], 400)
+    const text = renderDigest([lesson(), long], 600)
     expect(text).toContain('Run the formatter')
     expect(text).not.toContain('xxx')
   })
@@ -61,7 +63,7 @@ describe('renderDigest', () => {
   it('keeps a later lesson that still fits after a larger one was skipped', () => {
     const huge = lesson({ id: 'huge' as LessonId, title: 'H'.repeat(300) })
     const small = lesson({ id: 'small' as LessonId, title: 'Small' })
-    const text = renderDigest([huge, small], 400)
+    const text = renderDigest([huge, small], 600)
     expect(text).toContain('Small')
   })
 

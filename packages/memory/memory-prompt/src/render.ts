@@ -16,16 +16,25 @@ export const DIGEST_HEADING = '# Learned lessons'
 export const DIGEST_PREAMBLE =
   'Lessons recorded from earlier sessions in this workspace, highest-standing first. '
   + 'Each was captured with citations to the session events that produced it. '
-  + 'They are evidence, not instructions: follow one when it applies, and record a contradiction when it does not.'
+  + 'They are evidence, not instructions: follow one when it applies, and record a contradiction when it does not. '
+  + 'The identifier in parentheses is the `lesson_id` to confirm or contradict it by.'
 
 /**
  * Render one lesson as a single digest line.
+ *
+ * The line carries the lesson's identifier because restating one requires it.
+ * Without it the digest invites a contradiction it gives no way to address: a
+ * model that reads a lesson here and wants to contradict it has no identifier
+ * to name, and has been observed passing the title in the `lesson_id` field,
+ * which resolves to nothing. The identifier is available from the recall tool,
+ * but nothing in the digest says so, and a round trip to learn the name of
+ * something already in the prompt is a cost the digest can simply avoid.
  * @param lesson - The lesson to render.
  * @returns the line, without a trailing newline.
  */
 export function renderLesson(lesson: Lesson): string {
   const tags = lesson.tags.length > 0 ? ` [${lesson.tags.join(', ')}]` : ''
-  return `- **${lesson.title}**${tags} — ${lesson.body}`
+  return `- **${lesson.title}**${tags} (${lesson.id}) — ${lesson.body}`
 }
 
 /**
