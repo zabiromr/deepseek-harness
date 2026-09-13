@@ -49,6 +49,17 @@
     - id: code-runtime
       name: '@deepseek-ai/dsh-code-runtime-worker-thread'
 
+    # The model-facing side of session query. The sqlite engine is mounted in
+    # dsh-base, but nothing exposed it to the model, so a session asked to cite
+    # its own events had no sanctioned way to find their sequence numbers and
+    # read the log files instead — a compressed container whose naive reader
+    # returns wrong numbers, reached by spawning a shell that loads a
+    # decompression type reflectively. One such call scored 49 under a
+    # behavioural antivirus heuristic. `tool-self-reflect` names this tool in
+    # its schema and refusals; mounting it here makes that instruction true.
+    - id: tool-session-query
+      name: '@deepseek-ai/dsh-tool-session-query'
+
     - id: message-feedback
       name: '@deepseek-ai/dsh-message-feedback'
       config:
