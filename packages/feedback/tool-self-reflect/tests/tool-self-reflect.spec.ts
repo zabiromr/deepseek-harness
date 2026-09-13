@@ -241,6 +241,35 @@ describe('recording a lesson', () => {
     expect(stored[0]?.evidence[0]?.session).toBe('other-1')
   })
 
+  // Recording is cheap and has no identity of its own, so a model restating
+  // what it already knows adds a copy rather than confirming the original.
+  // Each copy then costs digest budget for the same sentence.
+  it('refuses a capture whose body is already stored, naming the lesson to confirm', async () => {
+    const ctx = await setup()
+    await call(ctx, { action: 'record', title: 'First', body: 'The same body.', evidence: [{ seq: [3] }] })
+    const stored = await ctx.memory.recall({ limit: 10 })
+
+    const result = await call(ctx, {
+      action: 'record',
+      title: 'Second wording of the same thing',
+      body: 'The same body.',
+      evidence: [{ seq: [3] }],
+    })
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain(stored[0]!.id)
+    expect(await ctx.memory.recall({ limit: 10 })).toHaveLength(1)
+  })
+
+  // A reworded lesson is a different claim, and deciding how different is not
+  // a check's judgement to make.
+  it('accepts a different body under the same title', async () => {
+    const ctx = await setup()
+    await call(ctx, { action: 'record', title: 'One title', body: 'First body.', evidence: [{ seq: [3] }] })
+    await call(ctx, { action: 'record', title: 'One title', body: 'Second body.', evidence: [{ seq: [3] }] })
+    expect(await ctx.memory.recall({ limit: 10 })).toHaveLength(2)
+  })
+
   it('rejects a capture with no citation', async () => {
     const ctx = await setup()
     const result = await call(ctx, { action: 'record', title: 'A', body: 'B', evidence: [] })
