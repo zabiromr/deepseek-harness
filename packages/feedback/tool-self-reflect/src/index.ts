@@ -213,6 +213,44 @@ function assertLessonWasShown(session: Session | undefined, title: string): void
   )
 }
 
+/**
+ * Refuse a capture whose body is already stored in the same scope.
+ *
+ * Recording is cheap and has no identity of its own, so a model correcting or
+ * restating something it already knows adds a second copy rather than raising
+ * the first one's standing. Each copy then costs digest budget for the same
+ * sentence, and the pair carries half the confirmations it has earned. One
+ * store accumulated a body twice within a minute this way.
+ *
+ * The comparison is exact rather than fuzzy: a reworded lesson is a different
+ * claim, and deciding how different is not a check's judgement to make.
+ * @param ctx - Cordis context carrying the memory service.
+ * @param scope - Workspace the capture would land in.
+ * @param body - Lesson body as written.
+ * @throws MemoryError `invalid-request` when the same body is already stored.
+ */
+async function assertNotAlreadyStored(ctx: Context, scope: string, body: string): Promise<void> {
+  const candidates = await ctx.memory.recall({
+    scope,
+    text: body.slice(0, DUPLICATE_PROBE_CHARS),
+    limit: DUPLICATE_PROBE_LIMIT,
+  })
+  const stored = candidates.find(lesson => lesson.body === body)
+  if (stored !== undefined) {
+    throw new MemoryError(
+      'invalid-request',
+      `this lesson is already stored as '${stored.id}'; confirm that one with your new evidence`
+      + ' instead of recording the same body again',
+    )
+  }
+}
+
+/** Body prefix used to narrow the duplicate probe before comparing in full. */
+const DUPLICATE_PROBE_CHARS = 80
+
+/** Candidates the duplicate probe inspects; the exact match decides. */
+const DUPLICATE_PROBE_LIMIT = 20
+
 /** Canonical result of one capture or restatement. */
 const OUTPUT_SCHEMA = {
   type: 'object',
@@ -348,8 +386,10 @@ export function apply(ctx: Context, config: Config): void {
             `lesson body is ${args.body.length} characters, over the ${config.maxBodyChars} limit`,
           )
         }
+        const scope = resolveScope(args.scope, session?.header.cwd, config.allowGlobalScope)
+        await assertNotAlreadyStored(ctx, scope, args.body)
         const lesson = await ctx.memory.record({
-          scope: resolveScope(args.scope, session?.header.cwd, config.allowGlobalScope),
+          scope,
           title: args.title,
           body: args.body,
           evidence,
