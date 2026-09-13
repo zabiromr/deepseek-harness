@@ -135,7 +135,8 @@ function resolveEvidence(
         throw new MemoryError(
           'invalid-evidence',
           `session '${source.id}' holds no event at seq ${seq};`
-          + ' list real ones with `session_event_search` rather than guessing',
+          + ' find real ones with `session_event_search` (a non-empty `query` is required)'
+          + ' rather than guessing',
         )
       }
     }
@@ -150,8 +151,10 @@ function resolveEvidence(
       'invalid-evidence',
       'evidence names no event this turn produced by acting; cite an assistant message, a tool'
       + ' call, or a tool result, not only the request and the session-opening events. Find one'
-      + ' with `session_event_search`: omit `session_id`, and pass `event_types` of `tool/call`'
-      + ' and `tool/result`.',
+      + ' with `session_event_search`: `query` is required, so search for something from the work'
+      + ' itself — a tool name you used, or a path you read — and pass `event_types` of'
+      + ' `tool/call` and `tool/result`, omitting `session_id` for this session. Its results carry'
+      + ' the seq numbers; nothing else needs reading.',
     )
   }
   return resolved
@@ -311,9 +314,11 @@ export function apply(ctx: Context, config: Config): void {
                 'Sequence numbers of the cited events, ascending. Each must name an event that'
                 + ' session holds, and at least one must be an assistant message, a tool call, or a'
                 + ' tool result: citing only the request and the session-opening events is refused.'
-                + ' Find them with `session_event_search`, omitting `session_id` for this session and'
-                + ' passing `event_types` of `tool/call` and `tool/result`; the session log files are'
-                + ' a compressed container and reading them directly is slower and error-prone.',
+                + ' `session_event_search` returns them: it requires a non-empty `query`, so search'
+                + ' for something from the work itself — a tool name you used, or a path you read —'
+                + ' with `event_types` of `tool/call` and `tool/result`, omitting `session_id` for'
+                + ' this session. That is the whole route; the session log files are a compressed'
+                + ' container and never need reading.',
             },
           },
         },
