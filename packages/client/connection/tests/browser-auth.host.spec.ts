@@ -62,6 +62,7 @@ function createAuth(
 function request(url: string, authority = '127.0.0.1:3080', init?: {
   cookie?: string
   method?: string
+  headers?: Readonly<Record<string, string>>
 }): ConnectionIndexRequest {
   return {
     method: init?.method ?? 'GET',
@@ -69,6 +70,7 @@ function request(url: string, authority = '127.0.0.1:3080', init?: {
     headers: {
       host: authority,
       ...init?.cookie === undefined ? {} : { cookie: init.cookie },
+      ...init?.headers,
     },
   }
 }
@@ -165,6 +167,45 @@ describe('BrowserAuth', () => {
         ? undefined
         : 'dsh web authentication required; reopen the URL printed by dsh web.\n')
     }
+  })
+
+  it('signs in loopback page loads without the token only when loopbackAutoLogin is on', async () => {
+    const store = new RecordCredentials()
+    const auth = await BrowserAuth.create({}, credentials(store), 30, true)
+    const staleToken = new URL(
+      (await BrowserAuth.create({}, credentials(new RecordCredentials()), 30)).authenticatedUrl('http://localhost:3080'),
+    ).search
+
+    for (const [url, authority, headers] of [
+      ['/', 'localhost:3080', {}],
+      ['/index.html', '127.0.0.1:3080', {}],
+      [`/${staleToken}`, 'localhost:3080', {}],
+      ['/', '[::1]:3080', { 'sec-fetch-site': 'same-site' }],
+    ] as const) {
+      const res = response()
+      expect(auth.authorizeIndex(request(url, authority, { headers }), res.value)).toBe(false)
+      expect(res.state.status).toBe(303)
+      expect(res.state.headers?.location).toBe('/')
+      const cookie = res.state.headers?.['set-cookie']?.split(';', 1)[0]
+      expect(cookie).toBeDefined()
+      expect(auth.isAuthenticated(request('/', authority, { cookie: cookie! }))).toBe(true)
+    }
+
+    for (const candidate of [
+      request('/', 'evil.example:3080'),
+      request('/', 'localhost:3080', { method: 'HEAD' }),
+      request('/', 'localhost:3080', { method: 'POST' }),
+      request('/', 'localhost:3080', { headers: { 'sec-fetch-site': 'cross-site' } }),
+    ]) {
+      const denied = response()
+      expect(auth.authorizeIndex(candidate, denied.value)).toBe(false)
+      expect(denied.state.status).toBe(401)
+    }
+
+    const off = await createAuth(new RecordCredentials())
+    const denied = response()
+    expect(off.authorizeIndex(request('/', 'localhost:3080'), denied.value)).toBe(false)
+    expect(denied.state.status).toBe(401)
   })
 
   it('rejects tampering, expiry, future issuance, and a longer lifetime than configured', async () => {
