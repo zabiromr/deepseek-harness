@@ -2,6 +2,7 @@
 
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
+import { isLoopbackHostname } from './loopback-hostname.ts'
 import type { CredentialProvider, CredentialRecord } from '@deepseek-ai/dsh-credentials'
 import type {
   ConnectionIndexRequest,
@@ -190,6 +191,7 @@ export class BrowserAuth {
     processOwner: object,
     private readonly secret: Buffer,
     maxAgeDays: number,
+    private readonly loopbackAutoLogin: boolean,
   ) {
     this.launchToken = processLaunchToken(processOwner)
     this.maxAgeMilliseconds = maxAgeDays * DAY_MILLISECONDS
@@ -205,14 +207,16 @@ export class BrowserAuth {
    * @param processOwner - root application context retaining one token across Connection reloads.
    * @param credentials - persistent credential provider for the Web profile.
    * @param maxAgeDays - positive absolute browser-cookie lifetime in days.
+   * @param loopbackAutoLogin - sign in loopback page loads without the launch token.
    * @returns initialized authentication owner with the process owner's launch token.
    */
   static async create(
     processOwner: object,
     credentials: CredentialProvider,
     maxAgeDays: number,
+    loopbackAutoLogin = false,
   ): Promise<BrowserAuth> {
-    return new BrowserAuth(processOwner, await initializeSecret(credentials), maxAgeDays)
+    return new BrowserAuth(processOwner, await initializeSecret(credentials), maxAgeDays, loopbackAutoLogin)
   }
 
   /**
@@ -241,27 +245,11 @@ export class BrowserAuth {
     /* v8 ignore next -- node:http always supplies url on server requests. */
     const url = new URL(req.url ?? '/', 'http://dsh.invalid')
     const tokens = url.searchParams.getAll(TOKEN_QUERY)
+    const authority = requestAuthority(req.headers)
     if (tokens.length > 0) {
-      const authority = requestAuthority(req.headers)
       if (req.method === 'GET' && url.pathname === '/' && tokens.length === 1
         && authority !== undefined && tokenMatches(tokens.join(''), this.launchToken)) {
-        const issuedAt = Date.now()
-        const expiresAt = issuedAt + this.maxAgeMilliseconds
-        const value = encodeCookie({
-          version: COOKIE_PAYLOAD_VERSION,
-          authority,
-          issuedAt,
-          expiresAt,
-        }, this.secret)
-        res.writeHead(303, {
-          'cache-control': 'no-store',
-          'location': '/',
-          'referrer-policy': 'no-referrer',
-          'set-cookie': sessionCookie(
-            cookieName(authority), value, expiresAt, Math.floor(this.maxAgeMilliseconds / 1000),
-          ),
-        })
-        res.end()
+        this.writeSession(res, authority)
         return false
       }
       if (req.method === 'GET' && url.pathname === '/' && this.isAuthenticated(req)) {
@@ -273,12 +261,54 @@ export class BrowserAuth {
         res.end()
         return false
       }
+      // A stale launch token (from before a restart) on loopback is no worse than none.
+      if (authority !== undefined && this.mayAutoLogin(req, authority)) {
+        this.writeSession(res, authority)
+        return false
+      }
       this.writeUnauthorized(req, res)
       return false
     }
     if (this.isAuthenticated(req)) return true
+    if (authority !== undefined && this.mayAutoLogin(req, authority)) {
+      this.writeSession(res, authority)
+      return false
+    }
     this.writeUnauthorized(req, res)
     return false
+  }
+
+  /**
+   * Whether `loopbackAutoLogin` lets this request sign in without the token:
+   * a GET whose Host is loopback (so DNS rebinding, which carries the
+   * attacker's hostname, never qualifies) and that a browser does not mark
+   * cross-site. The /api Host/Origin fence still applies to every later call.
+   */
+  private mayAutoLogin(req: ConnectionIndexRequest, authority: string): boolean {
+    if (!this.loopbackAutoLogin || req.method !== 'GET') return false
+    if (header(req.headers, 'sec-fetch-site') === 'cross-site') return false
+    return isLoopbackHostname(new URL(`http://${authority}`).hostname)
+  }
+
+  /** Mint the authority-bound session cookie and redirect to clean `/`. */
+  private writeSession(res: ConnectionIndexResponse, authority: string): void {
+    const issuedAt = Date.now()
+    const expiresAt = issuedAt + this.maxAgeMilliseconds
+    const value = encodeCookie({
+      version: COOKIE_PAYLOAD_VERSION,
+      authority,
+      issuedAt,
+      expiresAt,
+    }, this.secret)
+    res.writeHead(303, {
+      'cache-control': 'no-store',
+      'location': '/',
+      'referrer-policy': 'no-referrer',
+      'set-cookie': sessionCookie(
+        cookieName(authority), value, expiresAt, Math.floor(this.maxAgeMilliseconds / 1000),
+      ),
+    })
+    res.end()
   }
 
   /**
